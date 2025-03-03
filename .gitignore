@@ -1,0 +1,6 @@
+cmd/utxowallet/utxowallet
+vendor
+.idea
+coverage.txt
+*.swp
+.vscode
