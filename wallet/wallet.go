@@ -2421,14 +2421,6 @@ func (w *Wallet) GetTransactions(startBlock, endBlock *BlockIdentifier,
 				return nil, errors.New("no chain server client")
 			}
 			switch client := chainClient.(type) {
-			case *chain.RPCClient:
-				startHeader, err := client.GetBlockHeaderVerbose(
-					startBlock.hash,
-				)
-				if err != nil {
-					return nil, err
-				}
-				start = startHeader.Height
 			case *chain.NeutrinoClient:
 				var err error
 				start, err = client.GetBlockHeight(startBlock.hash)
@@ -2446,14 +2438,6 @@ func (w *Wallet) GetTransactions(startBlock, endBlock *BlockIdentifier,
 				return nil, errors.New("no chain server client")
 			}
 			switch client := chainClient.(type) {
-			case *chain.RPCClient:
-				endHeader, err := client.GetBlockHeaderVerbose(
-					endBlock.hash,
-				)
-				if err != nil {
-					return nil, err
-				}
-				end = endHeader.Height
 			case *chain.NeutrinoClient:
 				var err error
 				end, err = client.GetBlockHeight(endBlock.hash)

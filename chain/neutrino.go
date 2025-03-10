@@ -25,7 +25,7 @@ import (
 // given interface.
 var ErrUnimplemented = errors.New("unimplemented")
 
-// NeutrinoClient is an implementation of the btcwallet chain.Interface interface.
+// NeutrinoClient is an implementation of the utxowallet chain.Interface interface.
 type NeutrinoClient struct {
 	CS NeutrinoChainService
 

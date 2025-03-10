@@ -7,7 +7,6 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -28,13 +27,10 @@ import (
 )
 
 const (
-	defaultCAFilename       = "btcd.cert"
-	defaultConfigFilename   = "utxowallet.conf"
-	defaultLogLevel         = "info"
-	defaultLogDirname       = "logs"
-	defaultLogFilename      = "utxowallet.log"
-	defaultRPCMaxClients    = 10
-	defaultRPCMaxWebsockets = 25
+	defaultConfigFilename = "utxowallet.conf"
+	defaultLogLevel       = "info"
+	defaultLogDirname     = "logs"
+	defaultLogFilename    = "utxowallet.log"
 )
 
 var (
@@ -74,20 +70,6 @@ type config struct {
 	MaxPeers     int           `long:"maxpeers" description:"Max number of inbound and outbound peers"`
 	BanDuration  time.Duration `long:"banduration" description:"How long to ban misbehaving peers.  Valid time units are {s, m, h}.  Minimum 1 second"`
 	BanThreshold uint32        `long:"banthreshold" description:"Maximum allowed ban score before disconnecting and banning misbehaving peers."`
-
-	OneTimeTLSKey          bool     `long:"onetimetlskey" description:"Generate a new TLS certpair at startup, but only write the certificate to disk"`
-	DisableServerTLS       bool     `long:"noservertls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
-	LegacyRPCListeners     []string `long:"rpclisten" description:"Listen for legacy RPC connections on this interface/port (default port: 8332, testnet: 18332, simnet: 18554, regtest: 18332)"`
-	LegacyRPCMaxClients    int64    `long:"rpcmaxclients" description:"Max number of legacy RPC clients for standard connections"`
-	LegacyRPCMaxWebsockets int64    `long:"rpcmaxwebsockets" description:"Max number of legacy RPC websocket connections"`
-	Username               string   `short:"u" long:"username" description:"Username for legacy RPC and btcd authentication (if btcdusername is unset)"`
-	Password               string   `short:"P" long:"password" default-mask:"-" description:"Password for legacy RPC and btcd authentication (if btcdpassword is unset)"`
-
-	// EXPERIMENTAL RPC server options
-	//
-	// These options will change (and require changes to config files, etc.)
-	// when the new gRPC server is enabled.
-	ExperimentalRPCListeners []string `long:"experimentalrpclisten" description:"Listen for RPC connections on this interface/port"`
 }
 
 // cleanAndExpandPath expands environement variables and leading ~ in the
@@ -238,20 +220,18 @@ func parseAndSetDebugLevels(debugLevel string) error {
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		DebugLevel:             defaultLogLevel,
-		ConfigFile:             cfgutil.NewExplicitString(defaultConfigFile),
-		AppDataDir:             cfgutil.NewExplicitString(defaultAppDataDir),
-		LogDir:                 defaultLogDir,
-		WalletPass:             wallet.InsecurePubPassphrase,
-		LegacyRPCMaxClients:    defaultRPCMaxClients,
-		LegacyRPCMaxWebsockets: defaultRPCMaxWebsockets,
-		UseSPV:                 false,
-		AddPeers:               []string{},
-		ConnectPeers:           []string{},
-		MaxPeers:               spv.MaxPeers,
-		BanDuration:            spv.BanDuration,
-		BanThreshold:           spv.BanThreshold,
-		DBTimeout:              wallet.DefaultDBTimeout,
+		DebugLevel:   defaultLogLevel,
+		ConfigFile:   cfgutil.NewExplicitString(defaultConfigFile),
+		AppDataDir:   cfgutil.NewExplicitString(defaultAppDataDir),
+		LogDir:       defaultLogDir,
+		WalletPass:   wallet.InsecurePubPassphrase,
+		UseSPV:       false,
+		AddPeers:     []string{},
+		ConnectPeers: []string{},
+		MaxPeers:     spv.MaxPeers,
+		BanDuration:  spv.BanDuration,
+		BanThreshold: spv.BanThreshold,
+		DBTimeout:    wallet.DefaultDBTimeout,
 	}
 
 	// Pre-parse the command line options to see if an alternative config
@@ -494,95 +474,9 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	localhostListeners := map[string]struct{}{
-		"localhost": {},
-		"127.0.0.1": {},
-		"::1":       {},
-	}
-
 	spv.MaxPeers = cfg.MaxPeers
 	spv.BanDuration = cfg.BanDuration
 	spv.BanThreshold = cfg.BanThreshold
-
-	// Only set default RPC listeners when there are no listeners set for
-	// the experimental RPC server.  This is required to prevent the old RPC
-	// server from sharing listen addresses, since it is impossible to
-	// remove defaults from go-flags slice options without assigning
-	// specific behavior to a particular string.
-	if len(cfg.ExperimentalRPCListeners) == 0 && len(cfg.LegacyRPCListeners) == 0 {
-		addrs, err := net.LookupHost("localhost")
-		if err != nil {
-			return nil, nil, err
-		}
-		cfg.LegacyRPCListeners = make([]string, 0, len(addrs))
-		for _, addr := range addrs {
-			addr = net.JoinHostPort(addr, activeNet.RPCServerPort)
-			cfg.LegacyRPCListeners = append(cfg.LegacyRPCListeners, addr)
-		}
-	}
-
-	// Add default port to all rpc listener addresses if needed and remove
-	// duplicate addresses.
-	cfg.LegacyRPCListeners, err = cfgutil.NormalizeAddresses(
-		cfg.LegacyRPCListeners, activeNet.RPCServerPort)
-	if err != nil {
-		fmt.Fprintf(os.Stderr,
-			"Invalid network address in legacy RPC listeners: %v\n", err)
-		return nil, nil, err
-	}
-	cfg.ExperimentalRPCListeners, err = cfgutil.NormalizeAddresses(
-		cfg.ExperimentalRPCListeners, activeNet.RPCServerPort)
-	if err != nil {
-		fmt.Fprintf(os.Stderr,
-			"Invalid network address in RPC listeners: %v\n", err)
-		return nil, nil, err
-	}
-
-	// Both RPC servers may not listen on the same interface/port.
-	if len(cfg.LegacyRPCListeners) > 0 && len(cfg.ExperimentalRPCListeners) > 0 {
-		seenAddresses := make(map[string]struct{}, len(cfg.LegacyRPCListeners))
-		for _, addr := range cfg.LegacyRPCListeners {
-			seenAddresses[addr] = struct{}{}
-		}
-		for _, addr := range cfg.ExperimentalRPCListeners {
-			_, seen := seenAddresses[addr]
-			if seen {
-				err := fmt.Errorf("address `%s` may not be "+
-					"used as a listener address for both "+
-					"RPC servers", addr)
-				fmt.Fprintln(os.Stderr, err)
-				return nil, nil, err
-			}
-		}
-	}
-
-	// Only allow server TLS to be disabled if the RPC server is bound to
-	// localhost addresses.
-	if cfg.DisableServerTLS {
-		allListeners := append(cfg.LegacyRPCListeners,
-			cfg.ExperimentalRPCListeners...)
-		for _, addr := range allListeners {
-			host, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				str := "%s: RPC listen interface '%s' is " +
-					"invalid: %v"
-				err := fmt.Errorf(str, funcName, addr, err)
-				fmt.Fprintln(os.Stderr, err)
-				fmt.Fprintln(os.Stderr, usageMessage)
-				return nil, nil, err
-			}
-			if _, ok := localhostListeners[host]; !ok {
-				str := "%s: the --noservertls option may not be used " +
-					"when binding RPC to non localhost " +
-					"addresses: %s"
-				err := fmt.Errorf(str, funcName, addr)
-				fmt.Fprintln(os.Stderr, err)
-				fmt.Fprintln(os.Stderr, usageMessage)
-				return nil, nil, err
-			}
-		}
-	}
-
 	// Warn about missing config file after the final command line parse
 	// succeeds.  This prevents the warning on help messages and invalid
 	// options.
