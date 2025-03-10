@@ -38,12 +38,9 @@ const (
 )
 
 var (
-	btcdDefaultCAFile  = filepath.Join(btcutil.AppDataDir("btcd", false), "rpc.cert")
-	defaultAppDataDir  = btcutil.AppDataDir("utxowallet", false)
-	defaultConfigFile  = filepath.Join(defaultAppDataDir, defaultConfigFilename)
-	defaultRPCKeyFile  = filepath.Join(defaultAppDataDir, "rpc.key")
-	defaultRPCCertFile = filepath.Join(defaultAppDataDir, "rpc.cert")
-	defaultLogDir      = filepath.Join(defaultAppDataDir, defaultLogDirname)
+	defaultAppDataDir = btcutil.AppDataDir("utxowallet", false)
+	defaultConfigFile = filepath.Join(defaultAppDataDir, defaultConfigFilename)
+	defaultLogDir     = filepath.Join(defaultAppDataDir, defaultLogDirname)
 )
 
 //nolint:lll
@@ -70,16 +67,6 @@ type config struct {
 	// Wallet options
 	WalletPass string `long:"walletpass" default-mask:"-" description:"The public wallet password -- Only required if the wallet was created with one"`
 
-	// RPC client options
-	RPCConnect       string                  `short:"c" long:"rpcconnect" description:"Hostname/IP and port of btcd RPC server to connect to (default localhost:8334, testnet: localhost:18334, simnet: localhost:18556, regtest: localhost:18334)"`
-	CAFile           *cfgutil.ExplicitString `long:"cafile" description:"File containing root certificates to authenticate a TLS connections with btcd"`
-	DisableClientTLS bool                    `long:"noclienttls" description:"Disable TLS for the RPC client -- NOTE: This is only allowed if the RPC client is connecting to localhost"`
-	BtcdUsername     string                  `long:"btcdusername" description:"Username for btcd authentication"`
-	BtcdPassword     string                  `long:"btcdpassword" default-mask:"-" description:"Password for btcd authentication"`
-	Proxy            string                  `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
-	ProxyUser        string                  `long:"proxyuser" description:"Username for proxy server"`
-	ProxyPass        string                  `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
-
 	// SPV client options
 	UseSPV       bool          `long:"usespv" description:"Enables the experimental use of SPV rather than RPC for chain synchronization"`
 	AddPeers     []string      `short:"a" long:"addpeer" description:"Add a peer to connect with at startup"`
@@ -88,23 +75,13 @@ type config struct {
 	BanDuration  time.Duration `long:"banduration" description:"How long to ban misbehaving peers.  Valid time units are {s, m, h}.  Minimum 1 second"`
 	BanThreshold uint32        `long:"banthreshold" description:"Maximum allowed ban score before disconnecting and banning misbehaving peers."`
 
-	// RPC server options
-	//
-	// The legacy server is still enabled by default (and eventually will be
-	// replaced with the experimental server) so prepare for that change by
-	// renaming the struct fields (but not the configuration options).
-	//
-	// Usernames can also be used for the consensus RPC client, so they
-	// aren't considered legacy.
-	RPCCert                *cfgutil.ExplicitString `long:"rpccert" description:"File containing the certificate file"`
-	RPCKey                 *cfgutil.ExplicitString `long:"rpckey" description:"File containing the certificate key"`
-	OneTimeTLSKey          bool                    `long:"onetimetlskey" description:"Generate a new TLS certpair at startup, but only write the certificate to disk"`
-	DisableServerTLS       bool                    `long:"noservertls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
-	LegacyRPCListeners     []string                `long:"rpclisten" description:"Listen for legacy RPC connections on this interface/port (default port: 8332, testnet: 18332, simnet: 18554, regtest: 18332)"`
-	LegacyRPCMaxClients    int64                   `long:"rpcmaxclients" description:"Max number of legacy RPC clients for standard connections"`
-	LegacyRPCMaxWebsockets int64                   `long:"rpcmaxwebsockets" description:"Max number of legacy RPC websocket connections"`
-	Username               string                  `short:"u" long:"username" description:"Username for legacy RPC and btcd authentication (if btcdusername is unset)"`
-	Password               string                  `short:"P" long:"password" default-mask:"-" description:"Password for legacy RPC and btcd authentication (if btcdpassword is unset)"`
+	OneTimeTLSKey          bool     `long:"onetimetlskey" description:"Generate a new TLS certpair at startup, but only write the certificate to disk"`
+	DisableServerTLS       bool     `long:"noservertls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
+	LegacyRPCListeners     []string `long:"rpclisten" description:"Listen for legacy RPC connections on this interface/port (default port: 8332, testnet: 18332, simnet: 18554, regtest: 18332)"`
+	LegacyRPCMaxClients    int64    `long:"rpcmaxclients" description:"Max number of legacy RPC clients for standard connections"`
+	LegacyRPCMaxWebsockets int64    `long:"rpcmaxwebsockets" description:"Max number of legacy RPC websocket connections"`
+	Username               string   `short:"u" long:"username" description:"Username for legacy RPC and btcd authentication (if btcdusername is unset)"`
+	Password               string   `short:"P" long:"password" default-mask:"-" description:"Password for legacy RPC and btcd authentication (if btcdpassword is unset)"`
 
 	// EXPERIMENTAL RPC server options
 	//
@@ -266,9 +243,6 @@ func loadConfig() (*config, []string, error) {
 		AppDataDir:             cfgutil.NewExplicitString(defaultAppDataDir),
 		LogDir:                 defaultLogDir,
 		WalletPass:             wallet.InsecurePubPassphrase,
-		CAFile:                 cfgutil.NewExplicitString(""),
-		RPCKey:                 cfgutil.NewExplicitString(defaultRPCKeyFile),
-		RPCCert:                cfgutil.NewExplicitString(defaultRPCCertFile),
 		LegacyRPCMaxClients:    defaultRPCMaxClients,
 		LegacyRPCMaxWebsockets: defaultRPCMaxWebsockets,
 		UseSPV:                 false,
@@ -334,19 +308,6 @@ func loadConfig() (*config, []string, error) {
 	if _, err := bisonwire.ChainFromString(cfg.Chain); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(0)
-	}
-
-	// If an alternate data directory was specified, and paths with defaults
-	// relative to the data dir are unchanged, modify each path to be
-	// relative to the new data dir.
-	if cfg.AppDataDir.ExplicitlySet() {
-		cfg.AppDataDir.Value = cleanAndExpandPath(cfg.AppDataDir.Value)
-		if !cfg.RPCKey.ExplicitlySet() {
-			cfg.RPCKey.Value = filepath.Join(cfg.AppDataDir.Value, "rpc.key")
-		}
-		if !cfg.RPCCert.ExplicitlySet() {
-			cfg.RPCCert.Value = filepath.Join(cfg.AppDataDir.Value, "rpc.cert")
-		}
 	}
 
 	// Choose the active network params based on the selected network.
@@ -539,66 +500,9 @@ func loadConfig() (*config, []string, error) {
 		"::1":       {},
 	}
 
-	if cfg.UseSPV {
-		spv.MaxPeers = cfg.MaxPeers
-		spv.BanDuration = cfg.BanDuration
-		spv.BanThreshold = cfg.BanThreshold
-	} else {
-		if cfg.RPCConnect == "" {
-			cfg.RPCConnect = net.JoinHostPort("localhost", activeNet.RPCClientPort)
-		}
-
-		// Add default port to connect flag if missing.
-		cfg.RPCConnect, err = cfgutil.NormalizeAddress(cfg.RPCConnect,
-			activeNet.RPCClientPort)
-		if err != nil {
-			fmt.Fprintf(os.Stderr,
-				"Invalid rpcconnect network address: %v\n", err)
-			return nil, nil, err
-		}
-
-		RPCHost, _, err := net.SplitHostPort(cfg.RPCConnect)
-		if err != nil {
-			return nil, nil, err
-		}
-		if cfg.DisableClientTLS {
-			if _, ok := localhostListeners[RPCHost]; !ok {
-				str := "%s: the --noclienttls option may not be used " +
-					"when connecting RPC to non localhost " +
-					"addresses: %s"
-				err := fmt.Errorf(str, funcName, cfg.RPCConnect)
-				fmt.Fprintln(os.Stderr, err)
-				fmt.Fprintln(os.Stderr, usageMessage)
-				return nil, nil, err
-			}
-		} else {
-			// If CAFile is unset, choose either the copy or local btcd cert.
-			if !cfg.CAFile.ExplicitlySet() {
-				cfg.CAFile.Value = filepath.Join(cfg.AppDataDir.Value, defaultCAFilename)
-
-				// If the CA copy does not exist, check if we're connecting to
-				// a local btcd and switch to its RPC cert if it exists.
-				certExists, err := cfgutil.FileExists(cfg.CAFile.Value)
-				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					return nil, nil, err
-				}
-				if !certExists {
-					if _, ok := localhostListeners[RPCHost]; ok {
-						btcdCertExists, err := cfgutil.FileExists(
-							btcdDefaultCAFile)
-						if err != nil {
-							fmt.Fprintln(os.Stderr, err)
-							return nil, nil, err
-						}
-						if btcdCertExists {
-							cfg.CAFile.Value = btcdDefaultCAFile
-						}
-					}
-				}
-			}
-		}
-	}
+	spv.MaxPeers = cfg.MaxPeers
+	spv.BanDuration = cfg.BanDuration
+	spv.BanThreshold = cfg.BanThreshold
 
 	// Only set default RPC listeners when there are no listeners set for
 	// the experimental RPC server.  This is required to prevent the old RPC
@@ -677,22 +581,6 @@ func loadConfig() (*config, []string, error) {
 				return nil, nil, err
 			}
 		}
-	}
-
-	// Expand environment variable and leading ~ for filepaths.
-	cfg.CAFile.Value = cleanAndExpandPath(cfg.CAFile.Value)
-	cfg.RPCCert.Value = cleanAndExpandPath(cfg.RPCCert.Value)
-	cfg.RPCKey.Value = cleanAndExpandPath(cfg.RPCKey.Value)
-
-	// If the btcd username or password are unset, use the same auth as for
-	// the client.  The two settings were previously shared for btcd and
-	// client auth, so this avoids breaking backwards compatibility while
-	// allowing users to use different auth settings for btcd and wallet.
-	if cfg.BtcdUsername == "" {
-		cfg.BtcdUsername = cfg.Username
-	}
-	if cfg.BtcdPassword == "" {
-		cfg.BtcdPassword = cfg.Password
 	}
 
 	// Warn about missing config file after the final command line parse

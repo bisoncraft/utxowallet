@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 
 	"github.com/bisoncraft/utxowallet/chain"
-	"github.com/bisoncraft/utxowallet/rpc/legacyrpc"
-	"github.com/bisoncraft/utxowallet/rpc/rpcserver"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/wallet"
 	"github.com/bisoncraft/utxowallet/wtxmgr"
@@ -53,13 +51,12 @@ var (
 	// is written to by the Write method of the logWriter type.
 	logRotatorPipe *io.PipeWriter
 
-	log          = backendLog.Logger("BTCW")
-	walletLog    = backendLog.Logger("WLLT")
-	txmgrLog     = backendLog.Logger("TMGR")
-	chainLog     = backendLog.Logger("CHNS")
-	grpcLog      = backendLog.Logger("GRPC")
-	legacyRPCLog = backendLog.Logger("RPCS")
-	btcnLog      = backendLog.Logger("BTCN")
+	log       = backendLog.Logger("BTCW")
+	walletLog = backendLog.Logger("WLLT")
+	txmgrLog  = backendLog.Logger("TMGR")
+	chainLog  = backendLog.Logger("CHNS")
+	grpcLog   = backendLog.Logger("GRPC")
+	btcnLog   = backendLog.Logger("BTCN")
 )
 
 // Initialize package-global logger variables.
@@ -68,8 +65,6 @@ func init() {
 	wtxmgr.UseLogger(txmgrLog)
 	chain.UseLogger(chainLog)
 	rpcclient.UseLogger(chainLog)
-	rpcserver.UseLogger(grpcLog)
-	legacyrpc.UseLogger(legacyRPCLog)
 	spv.UseLogger(btcnLog)
 }
 
@@ -80,7 +75,6 @@ var subsystemLoggers = map[string]btclog.Logger{
 	"TMGR": txmgrLog,
 	"CHNS": chainLog,
 	"GRPC": grpcLog,
-	"RPCS": legacyRPCLog,
 	"BTCN": btcnLog,
 }
 

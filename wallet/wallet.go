@@ -198,13 +198,8 @@ func (w *Wallet) Start() {
 	go w.walletLocker()
 }
 
-// SynchronizeRPC associates the wallet with the consensus RPC client,
-// synchronizes the wallet with the latest changes to the blockchain, and
-// continuously updates the wallet through RPC notifications.
-//
-// This method is unstable and will be removed when all syncing logic is moved
-// outside of the wallet package.
-func (w *Wallet) SynchronizeRPC(chainClient chain.Interface) {
+// Synchronize starts syncing the chain.
+func (w *Wallet) Synchronize(chainClient chain.Interface) {
 	w.quitMu.Lock()
 	select {
 	case <-w.quit:
