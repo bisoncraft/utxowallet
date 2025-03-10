@@ -573,14 +573,6 @@ func (c *RPCClient) POSTClient() (*rpcclient.Client, error) {
 	return rpcclient.New(&configCopy, nil)
 }
 
-// LookupInputMempoolSpend returns the transaction hash and true if the given
-// input is found being spent in mempool, otherwise it returns nil and false.
-func (c *RPCClient) LookupInputMempoolSpend(op wire.OutPoint) (
-	chainhash.Hash, bool) {
-
-	return getTxSpendingPrevOut(op, c.Client)
-}
-
 // MapRPCErr takes an error returned from calling RPC methods from various
 // chain backends and maps it to an defined error here. It uses the
 // `BtcdErrMap`, whose keys are btcd error strings and values are errors made

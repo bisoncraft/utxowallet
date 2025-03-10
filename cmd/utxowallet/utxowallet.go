@@ -145,10 +145,6 @@ func walletMain() error {
 // associated with the server for RPC passthrough and to enable additional
 // methods.
 func rpcClientConnectLoop(legacyRPCServer *legacyrpc.Server, loader *wallet.Loader) {
-	var certs []byte
-	if !cfg.UseSPV {
-		certs = readCAFile()
-	}
 
 	for {
 		var (
@@ -156,45 +152,37 @@ func rpcClientConnectLoop(legacyRPCServer *legacyrpc.Server, loader *wallet.Load
 			err         error
 		)
 
-		if cfg.UseSPV {
-			var (
-				chainService *spv.ChainService
-				spvdb        walletdb.DB
-			)
-			netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
-			spvdb, err = walletdb.Create(
-				"bdb", filepath.Join(netDir, "spv.db"),
-				true, cfg.DBTimeout,
-			)
-			if err != nil {
-				log.Errorf("Unable to create Neutrino DB: %s", err)
-				continue
-			}
-			defer spvdb.Close()
-			chainService, err = spv.NewChainService(
-				spv.Config{
-					Chain:        bisonwire.Chain(cfg.Chain),
-					DataDir:      netDir,
-					Database:     spvdb,
-					ChainParams:  *activeNet.Params,
-					ConnectPeers: cfg.ConnectPeers,
-					AddPeers:     cfg.AddPeers,
-				})
-			if err != nil {
-				log.Errorf("Couldn't create Neutrino ChainService: %s", err)
-				continue
-			}
-			chainClient = chain.NewNeutrinoClient(activeNet.Params, chainService)
-			err = chainClient.Start()
-			if err != nil {
-				log.Errorf("Couldn't start Neutrino client: %s", err)
-			}
-		} else {
-			chainClient, err = startChainRPC(certs)
-			if err != nil {
-				log.Errorf("Unable to open connection to consensus RPC server: %v", err)
-				continue
-			}
+		var (
+			chainService *spv.ChainService
+			spvdb        walletdb.DB
+		)
+		netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
+		spvdb, err = walletdb.Create(
+			"bdb", filepath.Join(netDir, "spv.db"),
+			true, cfg.DBTimeout,
+		)
+		if err != nil {
+			log.Errorf("Unable to create Neutrino DB: %s", err)
+			continue
+		}
+		defer spvdb.Close()
+		chainService, err = spv.NewChainService(
+			spv.Config{
+				Chain:        bisonwire.Chain(cfg.Chain),
+				DataDir:      netDir,
+				Database:     spvdb,
+				ChainParams:  *activeNet.Params,
+				ConnectPeers: cfg.ConnectPeers,
+				AddPeers:     cfg.AddPeers,
+			})
+		if err != nil {
+			log.Errorf("Couldn't create Neutrino ChainService: %s", err)
+			continue
+		}
+		chainClient = chain.NewNeutrinoClient(activeNet.Params, chainService)
+		err = chainClient.Start()
+		if err != nil {
+			log.Errorf("Couldn't start Neutrino client: %s", err)
 		}
 
 		// Rather than inlining this logic directly into the loader
@@ -242,38 +230,4 @@ func rpcClientConnectLoop(legacyRPCServer *legacyrpc.Server, loader *wallet.Load
 			loadedWallet.Start()
 		}
 	}
-}
-
-func readCAFile() []byte {
-	// Read certificate file if TLS is not disabled.
-	var certs []byte
-	if !cfg.DisableClientTLS {
-		var err error
-		certs, err = os.ReadFile(cfg.CAFile.Value)
-		if err != nil {
-			log.Warnf("Cannot open CA file: %v", err)
-			// If there's an error reading the CA file, continue
-			// with nil certs and without the client connection.
-			certs = nil
-		}
-	} else {
-		log.Info("Chain server RPC TLS is disabled")
-	}
-
-	return certs
-}
-
-// startChainRPC opens a RPC client connection to a btcd server for blockchain
-// services.  This function uses the RPC options from the global config and
-// there is no recovery in case the server is not available or if there is an
-// authentication error.  Instead, all requests to the client will simply error.
-func startChainRPC(certs []byte) (*chain.RPCClient, error) {
-	log.Infof("Attempting RPC client connection to %v", cfg.RPCConnect)
-	rpcc, err := chain.NewRPCClient(activeNet.Params, cfg.RPCConnect,
-		cfg.BtcdUsername, cfg.BtcdPassword, certs, cfg.DisableClientTLS, 0)
-	if err != nil {
-		return nil, err
-	}
-	err = rpcc.Start()
-	return rpcc, err
 }

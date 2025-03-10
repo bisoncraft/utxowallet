@@ -12,7 +12,7 @@ import (
 )
 
 // NeutrinoChainService is an interface that encapsulates all the public
-// methods of a *spv.ChainService
+// methods of an *spv.ChainService
 type NeutrinoChainService interface {
 	Start() error
 	GetBlock(chainhash.Hash, ...spv.QueryOption) (*btcutil.Block, error)
