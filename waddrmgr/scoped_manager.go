@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/bisoncraft/utxowallet/internal/zero"
-	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv/cache/lru"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -2515,7 +2514,7 @@ func (s *ScopedKeyManager) cloneKeyWithVersion(key *hdkeychain.ExtendedKey) (
 	// Determine the appropriate version based on the current network and
 	// key scope.
 	var version HDVersion
-	net := s.rootManager.ChainParams().Net
+	net := s.rootManager.chainParams.Net
 	switch net {
 	case wire.MainNet:
 		switch s.scope {
@@ -2529,8 +2528,7 @@ func (s *ScopedKeyManager) cloneKeyWithVersion(key *hdkeychain.ExtendedKey) (
 			return nil, fmt.Errorf("unsupported scope %v", s.scope)
 		}
 
-	case wire.TestNet, wire.TestNet3,
-		netparams.SigNetWire(s.rootManager.ChainParams()):
+	case wire.TestNet, wire.TestNet3:
 
 		switch s.scope {
 		case KeyScopeBIP0044, KeyScopeBIP0086:

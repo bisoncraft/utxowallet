@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/blockntfns"
 	"github.com/bisoncraft/utxowallet/spv/chainsync"
@@ -76,7 +77,7 @@ type donePeerMsg struct {
 // during operation.
 type blockManagerCfg struct {
 	// ChainParams is the chain that we're running on.
-	ChainParams chaincfg.Params
+	ChainParams *netparams.ChainParams
 
 	// BlockHeaders is the store where blockheaders are persistently
 	// stored.
@@ -211,6 +212,7 @@ type blockManager struct { // nolint:maligned
 // newBlockManager returns a new bitcoin block manager.  Use Start to begin
 // processing asynchronous block and inv updates.
 func newBlockManager(cfg *blockManagerCfg) (*blockManager, error) {
+	var _ = (*chaincfg.Params)(nil).DefaultPort
 	targetTimespan := int64(cfg.ChainParams.TargetTimespan / time.Second)
 	targetTimePerBlock := int64(cfg.ChainParams.TargetTimePerBlock / time.Second)
 	adjustmentFactor := cfg.ChainParams.RetargetAdjustmentFactor
@@ -2779,7 +2781,7 @@ func (b *blockManager) checkHeaderSanity(blockHeader *wire.BlockHeader,
 
 	// Create a lightChainCtx as well.
 	chainCtx := newLightChainCtx(
-		&b.cfg.ChainParams, b.blocksPerRetarget, b.minRetargetTimespan,
+		b.cfg.ChainParams, b.blocksPerRetarget, b.minRetargetTimespan,
 		b.maxRetargetTimespan,
 	)
 
@@ -2873,7 +2875,7 @@ func (b *blockManager) NotificationsSinceHeight(
 // gives a neutrino node the ability to contextually validate headers it
 // receives.
 type lightChainCtx struct {
-	params              *chaincfg.Params
+	params              *netparams.ChainParams
 	blocksPerRetarget   int32
 	minRetargetTimespan int64
 	maxRetargetTimespan int64
@@ -2881,7 +2883,7 @@ type lightChainCtx struct {
 
 // newLightChainCtx returns a new lightChainCtx instance from the passed
 // arguments.
-func newLightChainCtx(params *chaincfg.Params, blocksPerRetarget int32,
+func newLightChainCtx(params *netparams.ChainParams, blocksPerRetarget int32,
 	minRetargetTimespan, maxRetargetTimespan int64) *lightChainCtx {
 
 	return &lightChainCtx{
@@ -2896,7 +2898,7 @@ func newLightChainCtx(params *chaincfg.Params, blocksPerRetarget int32,
 //
 // NOTE: Part of the blockchain.ChainCtx interface.
 func (l *lightChainCtx) ChainParams() *chaincfg.Params {
-	return l.params
+	return l.params.BTCDParams()
 }
 
 // BlocksPerRetarget returns the number of blocks before retargeting occurs.

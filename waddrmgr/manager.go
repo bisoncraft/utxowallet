@@ -350,7 +350,8 @@ type Manager struct {
 	birthday     time.Time
 	locked       atomic.Bool
 	closed       bool
-	chainParams  *chaincfg.Params
+
+	chainParams *chaincfg.Params
 
 	// masterKeyPub is the secret key used to secure the cryptoKeyPub key
 	// and masterKeyPriv is the secret key used to secure the cryptoKeyPriv

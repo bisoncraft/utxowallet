@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
@@ -1119,7 +1120,7 @@ func TestNeutrinoSync(t *testing.T) {
 	// test.
 
 	// Copy parameters and insert checkpoints
-	modParams := chaincfg.SimNetParams
+	modParams := netparams.NSimnetParams
 	for _, height := range []int64{111, 333, 555, 777, 999} {
 		hash, err := h1.Client.GetBlockHash(height)
 		if err != nil {

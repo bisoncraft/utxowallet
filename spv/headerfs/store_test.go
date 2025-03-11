@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -34,7 +35,7 @@ func createTestBlockHeaderStore() (func(), walletdb.DB, string,
 		return nil, nil, "", nil, err
 	}
 
-	hStore, err := NewBlockHeaderStore(tempDir, db, &chaincfg.SimNetParams)
+	hStore, err := NewBlockHeaderStore(tempDir, db, &chaincfg.SimNetParams.GenesisBlock.Header)
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
@@ -202,7 +203,7 @@ func TestBlockHeaderStoreRecovery(t *testing.T) {
 
 	// Next, we'll re-create the block header store in order to trigger the
 	// recovery logic.
-	hs, err := NewBlockHeaderStore(tempDir, db, &chaincfg.SimNetParams)
+	hs, err := NewBlockHeaderStore(tempDir, db, &chaincfg.SimNetParams.GenesisBlock.Header)
 	if err != nil {
 		t.Fatalf("unable to re-create bhs: %v", err)
 	}
@@ -238,7 +239,7 @@ func createTestFilterHeaderStore() (func(), walletdb.DB, string, *FilterHeaderSt
 	}
 
 	hStore, err := NewFilterHeaderStore(
-		tempDir, db, RegularFilter, &chaincfg.SimNetParams, nil,
+		tempDir, db, RegularFilter, netparams.NSimnetParams, nil,
 	)
 	if err != nil {
 		return nil, nil, "", nil, err
@@ -432,7 +433,7 @@ func TestFilterHeaderStoreRecovery(t *testing.T) {
 	// Next, we'll re-create the block header store in order to trigger the
 	// recovery logic.
 	fhs, err = NewFilterHeaderStore(
-		tempDir, db, RegularFilter, &chaincfg.SimNetParams, nil,
+		tempDir, db, RegularFilter, netparams.NSimnetParams, nil,
 	)
 	if err != nil {
 		t.Fatalf("unable to re-create bhs: %v", err)
@@ -610,7 +611,7 @@ func TestFilterHeaderStateAssertion(t *testing.T) {
 			// We'll then re-initialize the filter header store with
 			// its expected assertion.
 			fhs, err := NewFilterHeaderStore(
-				tempDir, db, RegularFilter, &chaincfg.SimNetParams,
+				tempDir, db, RegularFilter, netparams.NSimnetParams,
 				testCase.headerAssertion,
 			)
 			if err != nil {

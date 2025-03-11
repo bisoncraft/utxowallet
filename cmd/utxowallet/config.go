@@ -5,7 +5,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
 	"os/user"
@@ -15,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/assets"
 	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/internal/cfgutil"
 	"github.com/bisoncraft/utxowallet/internal/legacy/keystore"
@@ -22,7 +22,6 @@ import (
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/wallet"
 	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/chaincfg"
 	flags "github.com/jessevdk/go-flags"
 )
 
@@ -42,23 +41,19 @@ var (
 //nolint:lll
 type config struct {
 	// General application behavior
-	Chain           string                  `long:"chain" description:"Blockchain (btc, ltc)"`
-	ConfigFile      *cfgutil.ExplicitString `short:"C" long:"configfile" description:"Path to configuration file"`
-	ShowVersion     bool                    `short:"V" long:"version" description:"Display version information and exit"`
-	Create          bool                    `long:"create" description:"Create the wallet if it does not exist"`
-	CreateTemp      bool                    `long:"createtemp" description:"Create a temporary simulation wallet (pass=password) in the data directory indicated; must call with --datadir"`
-	AppDataDir      *cfgutil.ExplicitString `short:"A" long:"appdata" description:"Application data directory for wallet config, databases and logs"`
-	TestNet3        bool                    `long:"testnet" description:"Use the test Bitcoin network (version 3) (default mainnet)"`
-	SimNet          bool                    `long:"simnet" description:"Use the simulation test network (default mainnet)"`
-	SigNet          bool                    `long:"signet" description:"Use the signet test network (default mainnet)"`
-	SigNetChallenge string                  `long:"signetchallenge" description:"Connect to a custom signet network defined by this challenge instead of using the global default signet test network -- Can be specified multiple times"`
-	SigNetSeedNode  []string                `long:"signetseednode" description:"Specify a seed node for the signet network instead of using the global default signet network seed nodes"`
-	RegressionNet   bool                    `long:"regtest" description:"Use the regression test network (default mainnet)"`
-	NoInitialLoad   bool                    `long:"noinitialload" description:"Defer wallet creation/opening on startup and enable loading wallets over RPC"`
-	DebugLevel      string                  `short:"d" long:"debuglevel" description:"Logging level {trace, debug, info, warn, error, critical}"`
-	LogDir          string                  `long:"logdir" description:"Directory to log output."`
-	Profile         string                  `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	DBTimeout       time.Duration           `long:"dbtimeout" description:"The timeout value to use when opening the wallet database."`
+	Chain         string                  `long:"chain" description:"Blockchain (btc, ltc)"`
+	ConfigFile    *cfgutil.ExplicitString `short:"C" long:"configfile" description:"Path to configuration file"`
+	ShowVersion   bool                    `short:"V" long:"version" description:"Display version information and exit"`
+	Create        bool                    `long:"create" description:"Create the wallet if it does not exist"`
+	AppDataDir    *cfgutil.ExplicitString `short:"A" long:"appdata" description:"Application data directory for wallet config, databases and logs"`
+	Testnet       bool                    `long:"testnet" description:"Use the test Bitcoin network (version 3) (default mainnet)"`
+	Simnet        bool                    `long:"simnet" description:"Use the simulation test network (default mainnet)"`
+	RegressionNet bool                    `long:"regtest" description:"Use the regression test network (default mainnet)"`
+	NoInitialLoad bool                    `long:"noinitialload" description:"Defer wallet creation/opening on startup and enable loading wallets over RPC"`
+	DebugLevel    string                  `short:"d" long:"debuglevel" description:"Logging level {trace, debug, info, warn, error, critical}"`
+	LogDir        string                  `long:"logdir" description:"Directory to log output."`
+	Profile       string                  `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	DBTimeout     time.Duration           `long:"dbtimeout" description:"The timeout value to use when opening the wallet database."`
 
 	// Wallet options
 	WalletPass string `long:"walletpass" default-mask:"-" description:"The public wallet password -- Only required if the wallet was created with one"`
@@ -217,7 +212,7 @@ func parseAndSetDebugLevels(debugLevel string) error {
 // The above results in utxowallet functioning properly without any config
 // settings while still allowing the user to override settings with config files
 // and command line options.  Command line options always take precedence.
-func loadConfig() (*config, []string, error) {
+func loadConfig() (*config, *netparams.ChainParams, error) {
 	// Default config.
 	cfg := config{
 		DebugLevel:   defaultLogLevel,
@@ -247,10 +242,8 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Show the version and exit if the version flag was specified.
-	funcName := "loadConfig"
 	appName := filepath.Base(os.Args[0])
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
-	usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
 	if preCfg.ShowVersion {
 		fmt.Println(appName, "version", version())
 		os.Exit(0)
@@ -276,7 +269,7 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Parse command line options again to ensure they take precedence.
-	remainingArgs, err := parser.Parse()
+	_, err = parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); !ok || e.Type != flags.ErrHelp {
 			parser.WriteHelp(os.Stderr)
@@ -290,73 +283,22 @@ func loadConfig() (*config, []string, error) {
 		os.Exit(0)
 	}
 
-	// Choose the active network params based on the selected network.
-	// Multiple networks can't be selected simultaneously.
-	numNets := 0
-	if cfg.TestNet3 {
-		activeNet = &netparams.TestNet3Params
-		numNets++
+	net := "mainnet"
+	switch {
+	case cfg.Simnet:
+		net = "simnet"
+	case cfg.Testnet:
+		net = "testnet"
 	}
-	if cfg.SimNet {
-		activeNet = &netparams.SimNetParams
-		numNets++
-	}
-	if cfg.SigNet {
-		activeNet = &netparams.SigNetParams
-		numNets++
-
-		// Let the user overwrite the default signet parameters. The
-		// challenge defines the actual signet network to join and the
-		// seed nodes are needed for network discovery.
-		sigNetChallenge := chaincfg.DefaultSignetChallenge
-		sigNetSeeds := chaincfg.DefaultSignetDNSSeeds
-		if cfg.SigNetChallenge != "" {
-			challenge, err := hex.DecodeString(cfg.SigNetChallenge)
-			if err != nil {
-				str := "%s: Invalid signet challenge, hex " +
-					"decode failed: %v"
-				err := fmt.Errorf(str, funcName, err)
-				fmt.Fprintln(os.Stderr, err)
-				fmt.Fprintln(os.Stderr, usageMessage)
-				return nil, nil, err
-			}
-			sigNetChallenge = challenge
-		}
-
-		if len(cfg.SigNetSeedNode) > 0 {
-			sigNetSeeds = make(
-				[]chaincfg.DNSSeed, len(cfg.SigNetSeedNode),
-			)
-			for idx, seed := range cfg.SigNetSeedNode {
-				sigNetSeeds[idx] = chaincfg.DNSSeed{
-					Host:         seed,
-					HasFiltering: false,
-				}
-			}
-		}
-
-		chainParams := chaincfg.CustomSignetParams(
-			sigNetChallenge, sigNetSeeds,
-		)
-		activeNet.Params = &chainParams
-	}
-	if cfg.RegressionNet {
-		activeNet = &netparams.RegressionNetParams
-		numNets++
-	}
-	if numNets > 1 {
-		str := "%s: The testnet, signet, simnet, and regtest params " +
-			"can't be used together -- choose one"
-		err := fmt.Errorf(str, "loadConfig")
-		fmt.Fprintln(os.Stderr, err)
-		parser.WriteHelp(os.Stderr)
+	netParams, err := assets.NetParams(cfg.Chain, net)
+	if err != nil {
 		return nil, nil, err
 	}
 
 	// Append the network type to the log directory so it is "namespaced"
 	// per network.
 	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
-	cfg.LogDir = filepath.Join(cfg.LogDir, activeNet.Params.Name)
+	cfg.LogDir = filepath.Join(cfg.LogDir, netParams.Name)
 
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
@@ -376,32 +318,9 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Exit if you try to use a simulation wallet with a standard
-	// data directory.
-	if !cfg.AppDataDir.ExplicitlySet() && cfg.CreateTemp {
-		fmt.Fprintln(os.Stderr, "Tried to create a temporary simulation "+
-			"wallet, but failed to specify data directory!")
-		os.Exit(0)
-	}
-
-	// Exit if you try to use a simulation wallet on anything other than
-	// simnet.
-	if !cfg.SimNet && cfg.CreateTemp {
-		fmt.Fprintln(os.Stderr, "Tried to create a temporary simulation "+
-			"wallet for network other than simnet!")
-		os.Exit(0)
-	}
-
 	// Ensure the wallet exists or create it when the create flag is set.
-	netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
+	netDir := filepath.Join(cfg.AppDataDir.Value, netParams.Name)
 	dbPath := filepath.Join(netDir, wallet.WalletDBName)
-
-	if cfg.CreateTemp && cfg.Create {
-		err := fmt.Errorf("the flags --create and --createtemp can not " +
-			"be specified together. Use --help for more information")
-		fmt.Fprintln(os.Stderr, err)
-		return nil, nil, err
-	}
 
 	dbFileExists, err := cfgutil.FileExists(dbPath)
 	if err != nil {
@@ -409,30 +328,7 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	if cfg.CreateTemp { // nolint:gocritic
-		tempWalletExists := false
-
-		if dbFileExists {
-			str := fmt.Sprintf("The wallet already exists. Loading this " +
-				"wallet instead.")
-			fmt.Fprintln(os.Stdout, str)
-			tempWalletExists = true
-		}
-
-		// Ensure the data directory for the network exists.
-		if err := checkCreateDir(netDir); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return nil, nil, err
-		}
-
-		if !tempWalletExists {
-			// Perform the initial wallet creation wizard.
-			if err := createSimulationWallet(&cfg); err != nil {
-				fmt.Fprintln(os.Stderr, "Unable to create wallet:", err)
-				return nil, nil, err
-			}
-		}
-	} else if cfg.Create {
+	if cfg.Create {
 		// Error if the create flag is set and the wallet already
 		// exists.
 		if dbFileExists {
@@ -449,7 +345,7 @@ func loadConfig() (*config, []string, error) {
 		}
 
 		// Perform the initial wallet creation wizard.
-		if err := createWallet(&cfg); err != nil {
+		if err := createWallet(&cfg, netDir, netParams); err != nil {
 			fmt.Fprintln(os.Stderr, "Unable to create wallet:", err)
 			return nil, nil, err
 		}
@@ -484,5 +380,5 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("%v", configFileError)
 	}
 
-	return &cfg, remainingArgs, nil
+	return &cfg, netParams, nil
 }

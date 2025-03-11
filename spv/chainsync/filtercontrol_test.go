@@ -3,6 +3,7 @@ package chainsync
 import (
 	"testing"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
@@ -24,7 +25,7 @@ func TestControlCFHeader(t *testing.T) {
 
 	// Expect the control at height to succeed.
 	err := ControlCFHeader(
-		chaincfg.MainNetParams, wire.GCSFilterRegular, height, header,
+		netparams.NMainnetParams, wire.GCSFilterRegular, height, header,
 	)
 	if err != nil {
 		t.Fatalf("error checking height: %v", err)
@@ -35,7 +36,7 @@ func TestControlCFHeader(t *testing.T) {
 		"000000000006a7c089f671bb8df7671e5d5e9ba577cea1047d30a7f4919df193",
 	)
 	err = ControlCFHeader(
-		chaincfg.MainNetParams, wire.GCSFilterRegular, height, header,
+		netparams.NMainnetParams, wire.GCSFilterRegular, height, header,
 	)
 	if err != ErrCheckpointMismatch {
 		t.Fatalf("expected ErrCheckpointMismatch, got %v", err)
@@ -44,7 +45,7 @@ func TestControlCFHeader(t *testing.T) {
 	// Finally, control an unknown height. This should also pass since we
 	// don't have the checkpoint stored.
 	err = ControlCFHeader(
-		chaincfg.MainNetParams, wire.GCSFilterRegular, 99, header,
+		netparams.NMainnetParams, wire.GCSFilterRegular, 99, header,
 	)
 	if err != nil {
 		t.Fatalf("error checking height: %v", err)

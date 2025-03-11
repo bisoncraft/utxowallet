@@ -15,6 +15,7 @@ import (
 
 	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/chain"
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/wallet"
 	"github.com/bisoncraft/utxowallet/walletdb"
@@ -42,7 +43,7 @@ func main() {
 func walletMain() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
-	tcfg, _, err := loadConfig()
+	tcfg, netParams, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -67,15 +68,16 @@ func walletMain() error {
 		}()
 	}
 
-	dbDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
+	netDir := filepath.Join(cfg.AppDataDir.Value, netParams.Name)
+
 	loader := wallet.NewLoader(
-		activeNet.Params, dbDir, true, cfg.DBTimeout, 250,
+		netParams.BTCDParams(), netDir, true, cfg.DBTimeout, 250,
 	)
 
 	// Create and start chain RPC client so it's ready to connect to
 	// the wallet when loaded later.
 	if !cfg.NoInitialLoad {
-		go run(loader)
+		go run(loader, netDir, netParams)
 	}
 
 	if !cfg.NoInitialLoad {
@@ -103,7 +105,7 @@ func walletMain() error {
 	return nil
 }
 
-func run(loader *wallet.Loader) {
+func run(loader *wallet.Loader, netDir string, netParams *netparams.ChainParams) {
 
 	for {
 		var (
@@ -115,7 +117,6 @@ func run(loader *wallet.Loader) {
 			chainService *spv.ChainService
 			spvdb        walletdb.DB
 		)
-		netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
 		spvdb, err = walletdb.Create(
 			"bdb", filepath.Join(netDir, "spv.db"),
 			true, cfg.DBTimeout,
@@ -130,7 +131,7 @@ func run(loader *wallet.Loader) {
 				Chain:        bisonwire.Chain(cfg.Chain),
 				DataDir:      netDir,
 				Database:     spvdb,
-				ChainParams:  *activeNet.Params,
+				ChainParams:  netParams,
 				ConnectPeers: cfg.ConnectPeers,
 				AddPeers:     cfg.AddPeers,
 			})
@@ -138,7 +139,7 @@ func run(loader *wallet.Loader) {
 			log.Errorf("Couldn't create Neutrino ChainService: %s", err)
 			continue
 		}
-		chainClient = chain.NewNeutrinoClient(activeNet.Params, chainService)
+		chainClient = chain.NewNeutrinoClient(netParams, chainService)
 		err = chainClient.Start()
 		if err != nil {
 			log.Errorf("Couldn't start Neutrino client: %s", err)

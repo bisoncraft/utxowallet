@@ -3,10 +3,10 @@ package filterdb
 import (
 	"fmt"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
@@ -79,7 +79,7 @@ var _ FilterDatabase = (*FilterStore)(nil)
 
 // New creates a new instance of the FilterStore given an already open
 // database, and the target chain parameters.
-func New(db walletdb.DB, params chaincfg.Params) (*FilterStore, error) {
+func New(db walletdb.DB, params *netparams.ChainParams) (*FilterStore, error) {
 	err := walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		// As part of our initial setup, we'll try to create the top
 		// level filter bucket. If this already exists, then we can
@@ -92,6 +92,9 @@ func New(db walletdb.DB, params chaincfg.Params) (*FilterStore, error) {
 		// If the main bucket doesn't already exist, then we'll need to
 		// create the sub-buckets, and also initialize them with the
 		// genesis filters.
+
+		// (*chaincfg.Params)(nil).GenesisHash
+
 		genesisBlock := params.GenesisBlock
 		genesisHash := params.GenesisHash
 

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bisoncraft/utxowallet/bisonwire"
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/peer"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/blockntfns"
@@ -337,7 +338,7 @@ func (sp *ServerPeer) OnAddr(_ *peer.Peer, msg *wire.MsgAddr) {
 	// helps prevent the network from becoming another public test network
 	// since it will not be able to learn about other peers that have not
 	// specifically been provided.
-	if isDevNetwork(sp.server.chainParams.Net) {
+	if isDevNetwork(sp.server.chainParams2.Net) {
 		return
 	}
 
@@ -563,7 +564,7 @@ type Config struct {
 	Chain bisonwire.Chain
 
 	// ChainParams is the chain that we're running on.
-	ChainParams chaincfg.Params
+	ChainParams *netparams.ChainParams
 
 	// ConnectPeers is a slice of hosts that should be connected to on
 	// startup, and be established as persistent peers.
@@ -650,7 +651,8 @@ type ChainService struct { // nolint:maligned
 	FilterCache *lru.Cache[FilterCacheKey, *CacheableFilter]
 	BlockCache  *lru.Cache[wire.InvVect, *CacheableBlock]
 
-	chainParams          chaincfg.Params
+	chainParams          *netparams.ChainParams
+	chainParams2         *chaincfg.Params
 	addrManager          *addrmgr.AddrManager
 	connManager          *connmgr.ConnManager
 	blockManager         *blockManager
@@ -793,14 +795,14 @@ func NewChainService(cfg Config) (*ChainService, error) {
 	}
 
 	s.BlockHeaders, err = headerfs.NewBlockHeaderStore(
-		cfg.DataDir, cfg.Database, &cfg.ChainParams,
+		cfg.DataDir, cfg.Database, &cfg.ChainParams.GenesisBlock.Header,
 	)
 	if err != nil {
 		return nil, err
 	}
 	s.RegFilterHeaders, err = headerfs.NewFilterHeaderStore(
 		cfg.DataDir, cfg.Database, headerfs.RegularFilter,
-		&cfg.ChainParams, cfg.AssertFilterHeader,
+		cfg.ChainParams, cfg.AssertFilterHeader,
 	)
 	if err != nil {
 		return nil, err
@@ -1170,7 +1172,7 @@ func (s *ChainService) peerHandler() {
 
 	if !DisableDNSSeed {
 		// Add peers discovered through DNS to the address manager.
-		connmgr.SeedFromDNS(&s.chainParams, RequiredServices,
+		connmgr.SeedFromDNS(s.chainParams.BTCDParams(), RequiredServices,
 			s.nameResolver, func(addrs []*wire.NetAddressV2) {
 				var validAddrs []*wire.NetAddressV2
 				for _, addr := range addrs {
@@ -1621,7 +1623,7 @@ func (s *ChainService) UpdatePeerHeights(latestBlkHash *chainhash.Hash,
 
 // ChainParams returns a copy of the ChainService's chaincfg.Params.
 func (s *ChainService) ChainParams() chaincfg.Params {
-	return s.chainParams
+	return *s.chainParams.BTCDParams()
 }
 
 // Start begins connecting to peers and syncing the blockchain.

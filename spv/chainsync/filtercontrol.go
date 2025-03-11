@@ -3,6 +3,7 @@ package chainsync
 import (
 	"fmt"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
@@ -45,7 +46,7 @@ var filterHeaderCheckpoints = map[wire.BitcoinNet]map[uint32]*chainhash.Hash{
 // ControlCFHeader controls the given filter header against our list of
 // checkpoints. It returns ErrCheckpointMismatch if we have a checkpoint at the
 // given height, and it doesn't match.
-func ControlCFHeader(params chaincfg.Params, fType wire.FilterType,
+func ControlCFHeader(params *netparams.ChainParams, fType wire.FilterType,
 	height uint32, filterHeader *chainhash.Hash) error {
 
 	if fType != wire.GCSFilterRegular {

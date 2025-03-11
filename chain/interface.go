@@ -5,7 +5,6 @@ import (
 
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/bisoncraft/utxowallet/wtxmgr"
-	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
@@ -48,7 +47,6 @@ type Interface interface {
 	NotifyBlocks() error
 	Notifications() <-chan interface{}
 	BackEnd() string
-	TestMempoolAccept([]*wire.MsgTx, float64) ([]*btcjson.TestMempoolAcceptResult, error)
 	MapRPCErr(err error) error
 }
 

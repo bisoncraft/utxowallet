@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	_ "github.com/bisoncraft/utxowallet/walletdb/bdb"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/wire"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +27,10 @@ func createTestDatabase(t *testing.T) FilterDatabase {
 		require.NoError(t, db.Close())
 	})
 
-	filterDB, err := New(db, chaincfg.SimNetParams)
+	filterDB, err := New(db, &netparams.ChainParams{
+		GenesisBlock: &wire.MsgBlock{},
+		GenesisHash:  &chainhash.Hash{},
+	})
 	require.NoError(t, err)
 
 	return filterDB

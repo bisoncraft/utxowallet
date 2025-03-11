@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bisoncraft/utxowallet/bisonwire"
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/peer"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/blockntfns"
@@ -72,7 +73,7 @@ func setupBlockManager(t *testing.T) (*blockManager, headerfs.BlockHeaderStore,
 	})
 
 	hdrStore, err := headerfs.NewBlockHeaderStore(
-		tempDir, db, &chaincfg.SimNetParams,
+		tempDir, db, &chaincfg.SimNetParams.GenesisBlock.Header,
 	)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error creating block "+
@@ -80,7 +81,7 @@ func setupBlockManager(t *testing.T) (*blockManager, headerfs.BlockHeaderStore,
 	}
 
 	cfStore, err := headerfs.NewFilterHeaderStore(
-		tempDir, db, headerfs.RegularFilter, &chaincfg.SimNetParams,
+		tempDir, db, headerfs.RegularFilter, netparams.NSimnetParams,
 		nil,
 	)
 	if err != nil {
@@ -90,7 +91,7 @@ func setupBlockManager(t *testing.T) (*blockManager, headerfs.BlockHeaderStore,
 
 	// Set up a blockManager with the chain service we defined.
 	bm, err := newBlockManager(&blockManagerCfg{
-		ChainParams:      chaincfg.SimNetParams,
+		ChainParams:      netparams.NSimnetParams,
 		BlockHeaders:     hdrStore,
 		RegFilterHeaders: cfStore,
 		QueryDispatcher:  &mockDispatcher{},

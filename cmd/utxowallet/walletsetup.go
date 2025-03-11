@@ -13,31 +13,12 @@ import (
 
 	"github.com/bisoncraft/utxowallet/internal/legacy/keystore"
 	"github.com/bisoncraft/utxowallet/internal/prompt"
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/bisoncraft/utxowallet/wallet"
-	"github.com/bisoncraft/utxowallet/walletdb"
 	_ "github.com/bisoncraft/utxowallet/walletdb/bdb"
 	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/wire"
 )
-
-// networkDir returns the directory name of a network directory to hold wallet
-// files.
-func networkDir(dataDir string, chainParams *chaincfg.Params) string {
-	netname := chainParams.Name
-
-	// For now, we must always name the testnet data directory as "testnet"
-	// and not "testnet3" or any other version, as the chaincfg testnet3
-	// parameters will likely be switched to being named "testnet3" in the
-	// future.  This is done to future proof that change, and an upgrade
-	// plan to move the testnet3 data directory can be worked out later.
-	if chainParams.Net == wire.TestNet3 {
-		netname = "testnet"
-	}
-
-	return filepath.Join(dataDir, netname)
-}
 
 // convertLegacyKeystore converts all of the addresses in the passed legacy
 // key store to the new waddrmgr.Manager format.  Both the legacy keystore and
@@ -98,16 +79,14 @@ func convertLegacyKeystore(legacyKeyStore *keystore.Store, w *wallet.Wallet) {
 // createWallet prompts the user for information needed to generate a new wallet
 // and generates the wallet accordingly.  The new wallet will reside at the
 // provided path.
-func createWallet(cfg *config) error {
-	dbDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
+func createWallet(cfg *config, netDir string, netParams *netparams.ChainParams) error {
 	loader := wallet.NewLoader(
-		activeNet.Params, dbDir, true, cfg.DBTimeout, 250,
+		netParams.BTCDParams(), netDir, true, cfg.DBTimeout, 250,
 	)
 
 	// When there is a legacy keystore, open it now to ensure any errors
 	// don't end up exiting the process after the user has spent time
 	// entering a bunch of information.
-	netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
 	keystorePath := filepath.Join(netDir, keystore.Filename)
 	var legacyKeyStore *keystore.Store
 	_, err := os.Stat(keystorePath)
@@ -194,38 +173,6 @@ func createWallet(cfg *config) error {
 	}
 
 	w.Manager.Close()
-	fmt.Println("The wallet has been created successfully.")
-	return nil
-}
-
-// createSimulationWallet is intended to be called from the rpcclient
-// and used to create a wallet for actors involved in simulations.
-func createSimulationWallet(cfg *config) error {
-	// Simulation wallet password is 'password'.
-	privPass := []byte("password")
-
-	// Public passphrase is the default.
-	pubPass := []byte(wallet.InsecurePubPassphrase)
-
-	netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
-
-	// Create the wallet.
-	dbPath := filepath.Join(netDir, wallet.WalletDBName)
-	fmt.Println("Creating the wallet...")
-
-	// Create the wallet database backed by bolt db.
-	db, err := walletdb.Create("bdb", dbPath, true, cfg.DBTimeout)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	// Create the wallet.
-	err = wallet.Create(db, pubPass, privPass, nil, activeNet.Params, time.Now())
-	if err != nil {
-		return err
-	}
-
 	fmt.Println("The wallet has been created successfully.")
 	return nil
 }

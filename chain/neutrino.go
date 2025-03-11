@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/bisoncraft/utxowallet/wtxmgr"
-	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
@@ -29,7 +29,8 @@ var ErrUnimplemented = errors.New("unimplemented")
 type NeutrinoClient struct {
 	CS NeutrinoChainService
 
-	chainParams *chaincfg.Params
+	chainParams *netparams.ChainParams
+	btcParams   *chaincfg.Params
 
 	// We currently support only one rescan/notification goroutine per client.
 	// Therefore there can only be one instance of the rescan object and
@@ -74,9 +75,7 @@ var _ Interface = (*NeutrinoClient)(nil)
 
 // NewNeutrinoClient creates a new NeutrinoClient struct with a backing
 // ChainService.
-func NewNeutrinoClient(chainParams *chaincfg.Params,
-	chainService *spv.ChainService) *NeutrinoClient {
-
+func NewNeutrinoClient(chainParams *netparams.ChainParams, chainService *spv.ChainService) *NeutrinoClient {
 	chainSource := &spv.RescanChainSource{
 		ChainService: chainService,
 	}
@@ -91,6 +90,7 @@ func NewNeutrinoClient(chainParams *chaincfg.Params,
 	return &NeutrinoClient{
 		CS:          chainService,
 		chainParams: chainParams,
+		btcParams:   chainParams.BTCDParams(),
 		newRescan:   newRescan,
 	}
 }
@@ -226,16 +226,6 @@ func (s *NeutrinoClient) SendRawTransaction(tx *wire.MsgTx, allowHighFees bool) 
 	return &hash, nil
 }
 
-// TestMempoolAcceptCmd returns result of mempool acceptance tests indicating
-// if raw transaction(s) would be accepted by mempool.
-//
-// NOTE: This is part of the chain.Interface interface.
-func (s *NeutrinoClient) TestMempoolAccept(txns []*wire.MsgTx,
-	maxFeeRate float64) ([]*btcjson.TestMempoolAcceptResult, error) {
-
-	return nil, ErrUnimplemented
-}
-
 // FilterBlocks scans the blocks contained in the FilterBlocksRequest for any
 // addresses of interest. For each requested block, the corresponding compact
 // filter will first be checked for matches, skipping those that do not report
@@ -246,7 +236,7 @@ func (s *NeutrinoClient) TestMempoolAccept(txns []*wire.MsgTx,
 func (s *NeutrinoClient) FilterBlocks(
 	req *FilterBlocksRequest) (*FilterBlocksResponse, error) {
 
-	blockFilterer := NewBlockFilterer(s.chainParams, req)
+	blockFilterer := NewBlockFilterer(s.btcParams, req)
 
 	// Construct the watchlist using the addresses and outpoints contained
 	// in the filter blocks request.

@@ -25,7 +25,7 @@ var (
 type RPCErr uint32
 
 // This section defines all possible errors or reject reasons returned from
-// bitcoind's `sendrawtransaction` or `testmempoolaccept` RPC.
+// bitcoind's `sendrawtransaction` RPC.
 const (
 	// ErrMissingInputsOrSpent is returned when calling
 	// `sendrawtransaction` with missing inputs.

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -127,7 +126,7 @@ func (w *Wallet) isPubKeyForNet(pubKey *hdkeychain.ExtendedKey) bool {
 			version == waddrmgr.HDVersionMainNetBIP0049 ||
 			version == waddrmgr.HDVersionMainNetBIP0084
 
-	case wire.TestNet, wire.TestNet3, netparams.SigNetWire(w.chainParams):
+	case wire.TestNet, wire.TestNet3:
 		return version == waddrmgr.HDVersionTestNetBIP0044 ||
 			version == waddrmgr.HDVersionTestNetBIP0049 ||
 			version == waddrmgr.HDVersionTestNetBIP0084

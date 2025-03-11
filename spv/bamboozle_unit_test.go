@@ -7,11 +7,11 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -534,7 +534,7 @@ func runCheckCFCheckptSanityTestCase(t *testing.T, testCase *cfCheckptTestCase) 
 	defer db.Close()
 
 	hdrStore, err := headerfs.NewBlockHeaderStore(
-		tempDir, db, &chaincfg.SimNetParams,
+		tempDir, db, &netparams.NSimnetParams.GenesisBlock.Header,
 	)
 	if err != nil {
 		t.Fatalf("Error creating block header store: %s", err)
@@ -542,7 +542,7 @@ func runCheckCFCheckptSanityTestCase(t *testing.T, testCase *cfCheckptTestCase) 
 
 	cfStore, err := headerfs.NewFilterHeaderStore(
 		tempDir, db, headerfs.RegularFilter,
-		&chaincfg.SimNetParams, nil,
+		netparams.NSimnetParams, nil,
 	)
 	if err != nil {
 		t.Fatalf("Error creating filter header store: %s", err)

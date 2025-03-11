@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv/cache/lru"
 	"github.com/bisoncraft/utxowallet/spv/filterdb"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
@@ -285,7 +286,7 @@ func TestBlockCache(t *testing.T) {
 			size,
 		),
 		BlockHeaders: headers,
-		chainParams: chaincfg.Params{
+		chainParams: &netparams.ChainParams{
 			PowLimit: maxPowLimit,
 		},
 		timeSource:  blockchain.NewMedianTime(),

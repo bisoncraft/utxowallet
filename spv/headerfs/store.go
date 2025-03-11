@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -159,7 +159,7 @@ var _ BlockHeaderStore = (*blockHeaderStore)(nil)
 // the initial start up of the blockHeaderStore, then the initial genesis
 // header will need to be inserted.
 func NewBlockHeaderStore(filePath string, db walletdb.DB,
-	netParams *chaincfg.Params) (BlockHeaderStore, error) {
+	genesisHeader *wire.BlockHeader) (BlockHeaderStore, error) {
 
 	hStore, err := newHeaderStore(db, filePath, Block)
 	if err != nil {
@@ -181,7 +181,7 @@ func NewBlockHeaderStore(filePath string, db walletdb.DB,
 	// written the initial genesis header to disk, so we'll do so now.
 	if fileInfo.Size() == 0 {
 		genesisHeader := BlockHeader{
-			BlockHeader: &netParams.GenesisBlock.Header,
+			BlockHeader: genesisHeader,
 			Height:      0,
 		}
 		if err := bhs.WriteHeaders(genesisHeader); err != nil {
@@ -609,7 +609,7 @@ type FilterHeaderStore struct {
 // FilterHeaderStore, then the initial genesis filter header will need to be
 // inserted.
 func NewFilterHeaderStore(filePath string, db walletdb.DB,
-	filterType HeaderType, netParams *chaincfg.Params,
+	filterType HeaderType, netParams *netparams.ChainParams,
 	headerStateAssertion *FilterHeader) (*FilterHeaderStore, error) {
 
 	fStore, err := newHeaderStore(db, filePath, filterType)

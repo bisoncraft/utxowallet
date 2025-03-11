@@ -4,6 +4,4 @@
 
 package main
 
-import "github.com/bisoncraft/utxowallet/netparams"
-
-var activeNet = &netparams.MainNetParams
+// var activeNet = &netparams.MainNetParams

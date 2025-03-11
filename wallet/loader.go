@@ -76,7 +76,7 @@ type Loader struct {
 	cfg            *loaderConfig
 	callbacks      []func(*Wallet)
 	chainParams    *chaincfg.Params
-	dbDirPath      string
+	netDir         string
 	noFreelistSync bool
 	timeout        time.Duration
 	recoveryWindow uint32
@@ -91,7 +91,7 @@ type Loader struct {
 // NewLoader constructs a Loader with an optional recovery window. If the
 // recovery window is non-zero, the wallet will attempt to recovery addresses
 // starting from the last SyncedTo height.
-func NewLoader(chainParams *chaincfg.Params, dbDirPath string,
+func NewLoader(chainParams *chaincfg.Params, netDir string,
 	noFreelistSync bool, timeout time.Duration, recoveryWindow uint32,
 	opts ...LoaderOption) *Loader {
 
@@ -103,7 +103,7 @@ func NewLoader(chainParams *chaincfg.Params, dbDirPath string,
 	return &Loader{
 		cfg:            cfg,
 		chainParams:    chainParams,
-		dbDirPath:      dbDirPath,
+		netDir:         netDir,
 		noFreelistSync: noFreelistSync,
 		timeout:        timeout,
 		recoveryWindow: recoveryWindow,
@@ -253,10 +253,10 @@ func (l *Loader) createNewWallet(pubPassphrase, privPassphrase []byte,
 	}
 
 	if l.localDB {
-		dbPath := filepath.Join(l.dbDirPath, WalletDBName)
+		dbPath := filepath.Join(l.netDir, WalletDBName)
 
 		// Create the wallet database backed by bolt db.
-		err = os.MkdirAll(l.dbDirPath, 0700)
+		err = os.MkdirAll(l.netDir, 0700)
 		if err != nil {
 			return nil, err
 		}
@@ -324,12 +324,12 @@ func (l *Loader) OpenExistingWallet(pubPassphrase []byte,
 	if l.localDB {
 		var err error
 		// Ensure that the network directory exists.
-		if err = checkCreateDir(l.dbDirPath); err != nil {
+		if err = checkCreateDir(l.netDir); err != nil {
 			return nil, err
 		}
 
 		// Open the database using the boltdb backend.
-		dbPath := filepath.Join(l.dbDirPath, WalletDBName)
+		dbPath := filepath.Join(l.netDir, WalletDBName)
 		l.db, err = walletdb.Open(
 			"bdb", dbPath, l.noFreelistSync, l.timeout,
 		)
@@ -378,7 +378,7 @@ func (l *Loader) OpenExistingWallet(pubPassphrase []byte,
 // This may return an error for unexpected I/O failures.
 func (l *Loader) WalletExists() (bool, error) {
 	if l.localDB {
-		dbPath := filepath.Join(l.dbDirPath, WalletDBName)
+		dbPath := filepath.Join(l.netDir, WalletDBName)
 		return fileExists(dbPath)
 	}
 
