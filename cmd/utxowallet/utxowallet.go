@@ -5,6 +5,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	_ "net/http/pprof" // nolint:gosec
@@ -31,6 +32,7 @@ func main() {
 
 	// Work around defer not working after os.Exit.
 	if err := walletMain(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -43,7 +45,7 @@ func main() {
 func walletMain() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
-	tcfg, netParams, err := loadConfig()
+	tcfg, netDir, netParams, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -67,8 +69,6 @@ func walletMain() error {
 			log.Errorf("%v", http.ListenAndServe(listenAddr, nil))
 		}()
 	}
-
-	netDir := filepath.Join(cfg.AppDataDir.Value, netParams.Name)
 
 	loader := wallet.NewLoader(
 		netParams.BTCDParams(), netDir, true, cfg.DBTimeout, 250,

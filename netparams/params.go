@@ -13,54 +13,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
-// Params is used to group parameters for various networks such as the main
-// network and test networks.
-// type Params struct {
-// 	*chaincfg.Params
-// 	RPCClientPort string
-// 	RPCServerPort string
-// }
-
-// // MainNetParams contains parameters specific running btcwallet and
-// // btcd on the main network (wire.MainNet).
-// var MainNetParams = Params{
-// 	Params:        &chaincfg.MainNetParams,
-// 	RPCClientPort: "8334",
-// 	RPCServerPort: "8332",
-// }
-
-// // TestNet3Params contains parameters specific running btcwallet and
-// // btcd on the test network (version 3) (wire.TestNet3).
-// var TestNet3Params = Params{
-// 	Params:        &chaincfg.TestNet3Params,
-// 	RPCClientPort: "18334",
-// 	RPCServerPort: "18332",
-// }
-
-// // SimNetParams contains parameters specific to the simulation test network
-// // (wire.SimNet).
-// var SimNetParams = Params{
-// 	Params:        &chaincfg.SimNetParams,
-// 	RPCClientPort: "18556",
-// 	RPCServerPort: "18554",
-// }
-
-// // SigNetParams contains parameters specific to the signet test network
-// // (wire.SigNet).
-// var SigNetParams = Params{
-// 	Params:        &chaincfg.SigNetParams,
-// 	RPCClientPort: "38334",
-// 	RPCServerPort: "38332",
-// }
-
-// // RegressionNetParams contains parameters specific to the regression test
-// // network (wire.RegressionNet).
-// var RegressionNetParams = Params{
-// 	Params:        &chaincfg.RegressionNetParams,
-// 	RPCClientPort: "18334",
-// 	RPCServerPort: "18332",
-// }
-
 type ChainParams struct {
 	Name                     string
 	Net                      wire.BitcoinNet
@@ -116,8 +68,11 @@ func (c *ChainParams) BTCDParams() *chaincfg.Params {
 		HDPrivateKeyID:           c.HDPrivateKeyID,
 		HDPublicKeyID:            c.HDPublicKeyID,
 		HDCoinType:               c.HDCoinType,
+		// DRAFT NOTE: These heights are from Bitcoin. I'm not yet certain that
+		// they will be the same for other chains. Hard-coding here for now
+		// instead of adding them as fields of ChainParams.
+		BIP0034Height: 227931, // 000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8
+		BIP0065Height: 388381, // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
+		BIP0066Height: 363725, // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
 	}
 }
-
-var NSimnetParams = &ChainParams{}
-var NMainnetParams = &ChainParams{}

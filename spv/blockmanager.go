@@ -212,7 +212,6 @@ type blockManager struct { // nolint:maligned
 // newBlockManager returns a new bitcoin block manager.  Use Start to begin
 // processing asynchronous block and inv updates.
 func newBlockManager(cfg *blockManagerCfg) (*blockManager, error) {
-	var _ = (*chaincfg.Params)(nil).DefaultPort
 	targetTimespan := int64(cfg.ChainParams.TargetTimespan / time.Second)
 	targetTimePerBlock := int64(cfg.ChainParams.TargetTimePerBlock / time.Second)
 	adjustmentFactor := cfg.ChainParams.RetargetAdjustmentFactor

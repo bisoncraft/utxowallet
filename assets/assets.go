@@ -12,6 +12,8 @@ func NetParams(chain, net string) (p *netparams.ChainParams, _ error) {
 	switch chain {
 	case "btc":
 		p = BTCParams[net]
+	case "ltc":
+		p = LTCParams[net]
 	}
 	if p == nil {
 		return nil, fmt.Errorf("no net params for chain %s, network %s", chain, net)

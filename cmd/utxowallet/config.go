@@ -35,7 +35,6 @@ const (
 var (
 	defaultAppDataDir = btcutil.AppDataDir("utxowallet", false)
 	defaultConfigFile = filepath.Join(defaultAppDataDir, defaultConfigFilename)
-	defaultLogDir     = filepath.Join(defaultAppDataDir, defaultLogDirname)
 )
 
 //nolint:lll
@@ -212,13 +211,12 @@ func parseAndSetDebugLevels(debugLevel string) error {
 // The above results in utxowallet functioning properly without any config
 // settings while still allowing the user to override settings with config files
 // and command line options.  Command line options always take precedence.
-func loadConfig() (*config, *netparams.ChainParams, error) {
+func loadConfig() (*config, string, *netparams.ChainParams, error) {
 	// Default config.
 	cfg := config{
 		DebugLevel:   defaultLogLevel,
 		ConfigFile:   cfgutil.NewExplicitString(defaultConfigFile),
 		AppDataDir:   cfgutil.NewExplicitString(defaultAppDataDir),
-		LogDir:       defaultLogDir,
 		WalletPass:   wallet.InsecurePubPassphrase,
 		UseSPV:       false,
 		AddPeers:     []string{},
@@ -238,7 +236,12 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 		if e, ok := err.(*flags.Error); !ok || e.Type != flags.ErrHelp {
 			preParser.WriteHelp(os.Stderr)
 		}
-		return nil, nil, err
+		return nil, "", nil, err
+	}
+
+	// For now, the chain has to be set at the command-line.
+	if preCfg.Chain == "" {
+		return nil, "", nil, fmt.Errorf("no chain defined")
 	}
 
 	// Show the version and exit if the version flag was specified.
@@ -263,7 +266,7 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 		if _, ok := err.(*os.PathError); !ok {
 			fmt.Fprintln(os.Stderr, err)
 			parser.WriteHelp(os.Stderr)
-			return nil, nil, err
+			return nil, "", nil, err
 		}
 		configFileError = err
 	}
@@ -274,7 +277,7 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 		if e, ok := err.(*flags.Error); !ok || e.Type != flags.ErrHelp {
 			parser.WriteHelp(os.Stderr)
 		}
-		return nil, nil, err
+		return nil, "", nil, err
 	}
 
 	// They must choose a blockchain.
@@ -292,13 +295,8 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 	}
 	netParams, err := assets.NetParams(cfg.Chain, net)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", nil, err
 	}
-
-	// Append the network type to the log directory so it is "namespaced"
-	// per network.
-	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
-	cfg.LogDir = filepath.Join(cfg.LogDir, netParams.Name)
 
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
@@ -306,26 +304,27 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 		os.Exit(0)
 	}
 
-	// Initialize log rotation.  After log rotation has been initialized, the
-	// logger variables may be used.
-	initLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
-
 	// Parse, validate, and set debug log level(s).
 	if err := parseAndSetDebugLevels(cfg.DebugLevel); err != nil {
 		err := fmt.Errorf("%s: %w", "loadConfig", err)
 		fmt.Fprintln(os.Stderr, err)
 		parser.WriteHelp(os.Stderr)
-		return nil, nil, err
+		return nil, "", nil, err
 	}
 
 	// Ensure the wallet exists or create it when the create flag is set.
-	netDir := filepath.Join(cfg.AppDataDir.Value, netParams.Name)
+	netDir := filepath.Join(cfg.AppDataDir.Value, cfg.Chain, netParams.Name)
 	dbPath := filepath.Join(netDir, wallet.WalletDBName)
+	cfg.LogDir = filepath.Join(netDir, "logs")
+
+	// Initialize log rotation.  After log rotation has been initialized, the
+	// logger variables may be used.
+	initLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
 
 	dbFileExists, err := cfgutil.FileExists(dbPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		return nil, nil, err
+		return nil, "", nil, err
 	}
 
 	if cfg.Create {
@@ -335,19 +334,19 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 			err := fmt.Errorf("the wallet database file `%v` "+
 				"already exists", dbPath)
 			fmt.Fprintln(os.Stderr, err)
-			return nil, nil, err
+			return nil, "", nil, err
 		}
 
 		// Ensure the data directory for the network exists.
 		if err := checkCreateDir(netDir); err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return nil, nil, err
+			return nil, "", nil, err
 		}
 
 		// Perform the initial wallet creation wizard.
 		if err := createWallet(&cfg, netDir, netParams); err != nil {
 			fmt.Fprintln(os.Stderr, "Unable to create wallet:", err)
-			return nil, nil, err
+			return nil, "", nil, err
 		}
 
 		// Created successfully, so exit now with success.
@@ -357,7 +356,7 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 		keystoreExists, err := cfgutil.FileExists(keystorePath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return nil, nil, err
+			return nil, "", nil, err
 		}
 		if !keystoreExists {
 			err = fmt.Errorf("the wallet does not exist, run with " +
@@ -367,7 +366,7 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 				"with the --create option to import it")
 		}
 		fmt.Fprintln(os.Stderr, err)
-		return nil, nil, err
+		return nil, "", nil, err
 	}
 
 	spv.MaxPeers = cfg.MaxPeers
@@ -380,5 +379,5 @@ func loadConfig() (*config, *netparams.ChainParams, error) {
 		log.Warnf("%v", configFileError)
 	}
 
-	return &cfg, netParams, nil
+	return &cfg, netDir, netParams, nil
 }
