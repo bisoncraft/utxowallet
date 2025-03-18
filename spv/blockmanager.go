@@ -120,6 +120,8 @@ type blockManager struct { // nolint:maligned
 
 	cfg *blockManagerCfg
 
+	btcdParams *chaincfg.Params
+
 	// blkHeaderProgressLogger is a progress logger that we'll use to
 	// update the number of blocker headers we've processed in the past 10
 	// seconds within the log.
@@ -218,6 +220,7 @@ func newBlockManager(cfg *blockManagerCfg) (*blockManager, error) {
 
 	bm := blockManager{
 		cfg:           cfg,
+		btcdParams:    cfg.ChainParams.BTCDParams(),
 		peerChan:      make(chan interface{}, MaxPeers*3),
 		blockNtfnChan: make(chan blockntfns.BlockNtfn),
 		blkHeaderProgressLogger: newBlockProgressLogger(
@@ -2780,13 +2783,20 @@ func (b *blockManager) checkHeaderSanity(blockHeader *wire.BlockHeader,
 
 	// Create a lightChainCtx as well.
 	chainCtx := newLightChainCtx(
-		b.cfg.ChainParams, b.blocksPerRetarget, b.minRetargetTimespan,
+		b.btcdParams, b.blocksPerRetarget, b.minRetargetTimespan,
 		b.maxRetargetTimespan,
 	)
 
-	var emptyFlags blockchain.BehaviorFlags
+	flags := blockchain.BehaviorFlags(0)
+	if b.cfg.ChainParams.CheckPoW != nil {
+		flags |= blockchain.BFNoPoWCheck | blockchain.BFFastAdd
+		if err := b.cfg.ChainParams.CheckPoW(blockHeader); err != nil {
+			return err
+		}
+	}
+
 	err := blockchain.CheckBlockHeaderContext(
-		blockHeader, parentHeaderCtx, emptyFlags, chainCtx, true,
+		blockHeader, parentHeaderCtx, flags, chainCtx, true,
 	)
 	if err != nil {
 		return err
@@ -2794,7 +2804,7 @@ func (b *blockManager) checkHeaderSanity(blockHeader *wire.BlockHeader,
 
 	return blockchain.CheckBlockHeaderSanity(
 		blockHeader, b.cfg.ChainParams.PowLimit, b.cfg.TimeSource,
-		emptyFlags,
+		flags,
 	)
 }
 
@@ -2874,7 +2884,7 @@ func (b *blockManager) NotificationsSinceHeight(
 // gives a neutrino node the ability to contextually validate headers it
 // receives.
 type lightChainCtx struct {
-	params              *netparams.ChainParams
+	btcdParams          *chaincfg.Params
 	blocksPerRetarget   int32
 	minRetargetTimespan int64
 	maxRetargetTimespan int64
@@ -2882,11 +2892,11 @@ type lightChainCtx struct {
 
 // newLightChainCtx returns a new lightChainCtx instance from the passed
 // arguments.
-func newLightChainCtx(params *netparams.ChainParams, blocksPerRetarget int32,
+func newLightChainCtx(btcdParams *chaincfg.Params, blocksPerRetarget int32,
 	minRetargetTimespan, maxRetargetTimespan int64) *lightChainCtx {
 
 	return &lightChainCtx{
-		params:              params,
+		btcdParams:          btcdParams,
 		blocksPerRetarget:   blocksPerRetarget,
 		minRetargetTimespan: minRetargetTimespan,
 		maxRetargetTimespan: maxRetargetTimespan,
@@ -2897,7 +2907,7 @@ func newLightChainCtx(params *netparams.ChainParams, blocksPerRetarget int32,
 //
 // NOTE: Part of the blockchain.ChainCtx interface.
 func (l *lightChainCtx) ChainParams() *chaincfg.Params {
-	return l.params.BTCDParams()
+	return l.btcdParams
 }
 
 // BlocksPerRetarget returns the number of blocks before retargeting occurs.

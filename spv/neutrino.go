@@ -46,11 +46,11 @@ var (
 
 	// UserAgentName is the user agent name and is used to help identify
 	// ourselves to other bitcoin peers.
-	UserAgentName = "neutrino"
+	UserAgentName = "BisonSPV"
 
 	// UserAgentVersion is the user agent version and is used to help
 	// identify ourselves to other bitcoin peers.
-	UserAgentVersion = "0.12.0-beta"
+	UserAgentVersion = "0.0.1-beta"
 
 	// Services describes the services that are supported by the server.
 	Services = wire.SFNodeWitness | wire.SFNodeCF
@@ -652,6 +652,7 @@ type ChainService struct { // nolint:maligned
 	BlockCache  *lru.Cache[wire.InvVect, *CacheableBlock]
 
 	chainParams          *netparams.ChainParams
+	btcdParams           *chaincfg.Params
 	chainParams2         *chaincfg.Params
 	addrManager          *addrmgr.AddrManager
 	connManager          *connmgr.ConnManager
@@ -731,6 +732,7 @@ func NewChainService(cfg Config) (*ChainService, error) {
 	s := ChainService{
 		chain:             cfg.Chain,
 		chainParams:       cfg.ChainParams,
+		btcdParams:        cfg.ChainParams.BTCDParams(),
 		addrManager:       amgr,
 		newPeers:          make(chan *ServerPeer, MaxPeers),
 		donePeers:         make(chan *ServerPeer, MaxPeers),
@@ -1172,7 +1174,7 @@ func (s *ChainService) peerHandler() {
 
 	if !DisableDNSSeed {
 		// Add peers discovered through DNS to the address manager.
-		connmgr.SeedFromDNS(s.chainParams.BTCDParams(), RequiredServices,
+		connmgr.SeedFromDNS(s.btcdParams, RequiredServices,
 			s.nameResolver, func(addrs []*wire.NetAddressV2) {
 				var validAddrs []*wire.NetAddressV2
 				for _, addr := range addrs {

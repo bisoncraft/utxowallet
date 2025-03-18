@@ -44,6 +44,14 @@ type ChainParams struct {
 	// BIP44 coin type used in the hierarchical deterministic path for
 	// address generation.
 	HDCoinType uint32
+
+	BIP0034Height int32
+	BIP0065Height int32
+	BIP0066Height int32
+
+	// CheckPoW is a function that will check the proof-of-work validity for a
+	// block header. If CheckPoW is nil, the standard Bitcoin protocol is used.
+	CheckPoW func(*wire.BlockHeader) error
 }
 
 func (c *ChainParams) BTCDParams() *chaincfg.Params {
@@ -68,11 +76,8 @@ func (c *ChainParams) BTCDParams() *chaincfg.Params {
 		HDPrivateKeyID:           c.HDPrivateKeyID,
 		HDPublicKeyID:            c.HDPublicKeyID,
 		HDCoinType:               c.HDCoinType,
-		// DRAFT NOTE: These heights are from Bitcoin. I'm not yet certain that
-		// they will be the same for other chains. Hard-coding here for now
-		// instead of adding them as fields of ChainParams.
-		BIP0034Height: 227931, // 000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8
-		BIP0065Height: 388381, // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
-		BIP0066Height: 363725, // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
+		BIP0034Height:            c.BIP0034Height,
+		BIP0065Height:            c.BIP0065Height,
+		BIP0066Height:            c.BIP0066Height,
 	}
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/bisoncraft/utxowallet/assets"
 	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/internal/cfgutil"
-	"github.com/bisoncraft/utxowallet/internal/legacy/keystore"
 	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/wallet"
@@ -352,21 +351,7 @@ func loadConfig() (*config, string, *netparams.ChainParams, error) {
 		// Created successfully, so exit now with success.
 		os.Exit(0)
 	} else if !dbFileExists && !cfg.NoInitialLoad {
-		keystorePath := filepath.Join(netDir, keystore.Filename)
-		keystoreExists, err := cfgutil.FileExists(keystorePath)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return nil, "", nil, err
-		}
-		if !keystoreExists {
-			err = fmt.Errorf("the wallet does not exist, run with " +
-				"the --create option to initialize and create it")
-		} else {
-			err = fmt.Errorf("the wallet is in legacy format, run " +
-				"with the --create option to import it")
-		}
-		fmt.Fprintln(os.Stderr, err)
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("the wallet does not exist, run with the --create option to initialize and create it")
 	}
 
 	spv.MaxPeers = cfg.MaxPeers

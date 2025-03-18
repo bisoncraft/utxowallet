@@ -15,7 +15,6 @@ import (
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
 )
 
 // HDVersion represents the different supported schemes of hierarchical
@@ -2514,50 +2513,15 @@ func (s *ScopedKeyManager) cloneKeyWithVersion(key *hdkeychain.ExtendedKey) (
 	// Determine the appropriate version based on the current network and
 	// key scope.
 	var version HDVersion
-	net := s.rootManager.chainParams.Net
-	switch net {
-	case wire.MainNet:
-		switch s.scope {
-		case KeyScopeBIP0044, KeyScopeBIP0086:
-			version = HDVersionMainNetBIP0044
-		case KeyScopeBIP0049Plus:
-			version = HDVersionMainNetBIP0049
-		case KeyScopeBIP0084:
-			version = HDVersionMainNetBIP0084
-		default:
-			return nil, fmt.Errorf("unsupported scope %v", s.scope)
-		}
-
-	case wire.TestNet, wire.TestNet3:
-
-		switch s.scope {
-		case KeyScopeBIP0044, KeyScopeBIP0086:
-			version = HDVersionTestNetBIP0044
-		case KeyScopeBIP0049Plus:
-			version = HDVersionTestNetBIP0049
-		case KeyScopeBIP0084:
-			version = HDVersionTestNetBIP0084
-		default:
-			return nil, fmt.Errorf("unsupported scope %v", s.scope)
-		}
-
-	case wire.SimNet:
-		switch s.scope {
-		case KeyScopeBIP0044, KeyScopeBIP0086:
-			version = HDVersionSimNetBIP0044
-		// We use the mainnet versions for simnet keys when the keys
-		// belong to a key scope which simnet doesn't have a defined
-		// version for.
-		case KeyScopeBIP0049Plus:
-			version = HDVersionMainNetBIP0049
-		case KeyScopeBIP0084:
-			version = HDVersionMainNetBIP0084
-		default:
-			return nil, fmt.Errorf("unsupported scope %v", s.scope)
-		}
-
+	switch s.scope {
+	case KeyScopeBIP0044, KeyScopeBIP0086:
+		version = HDVersionMainNetBIP0044
+	case KeyScopeBIP0049Plus:
+		version = HDVersionMainNetBIP0049
+	case KeyScopeBIP0084:
+		version = HDVersionMainNetBIP0084
 	default:
-		return nil, fmt.Errorf("unsupported net %v", net)
+		return nil, fmt.Errorf("unsupported scope %v", s.scope)
 	}
 
 	var versionBytes [4]byte

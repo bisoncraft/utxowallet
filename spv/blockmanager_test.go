@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/assets"
 	"github.com/bisoncraft/utxowallet/bisonwire"
-	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/peer"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/blockntfns"
@@ -80,8 +80,10 @@ func setupBlockManager(t *testing.T) (*blockManager, headerfs.BlockHeaderStore,
 			"header store: %s", err)
 	}
 
+	params := assets.BTCParams["simnet"]
+
 	cfStore, err := headerfs.NewFilterHeaderStore(
-		tempDir, db, headerfs.RegularFilter, netparams.NSimnetParams,
+		tempDir, db, headerfs.RegularFilter, params,
 		nil,
 	)
 	if err != nil {
@@ -91,7 +93,7 @@ func setupBlockManager(t *testing.T) (*blockManager, headerfs.BlockHeaderStore,
 
 	// Set up a blockManager with the chain service we defined.
 	bm, err := newBlockManager(&blockManagerCfg{
-		ChainParams:      netparams.NSimnetParams,
+		ChainParams:      params,
 		BlockHeaders:     hdrStore,
 		RegFilterHeaders: cfStore,
 		QueryDispatcher:  &mockDispatcher{},
