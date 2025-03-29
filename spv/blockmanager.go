@@ -3223,10 +3223,10 @@ func checkTransactionSanity(tx *btcutil.Tx, chainParams *netparams.ChainParams) 
 				"value of %v", satoshi)
 			return ruleError(blockchain.ErrBadTxOutValue, str)
 		}
-		if satoshi > btcutil.MaxSatoshi {
+		if satoshi > chainParams.MaxSatoshi {
 			str := fmt.Sprintf("transaction output value is "+
 				"higher than max allowed value: %v > %v ",
-				satoshi, btcutil.MaxSatoshi)
+				satoshi, chainParams.MaxSatoshi)
 			return ruleError(blockchain.ErrBadTxOutValue, str)
 		}
 
@@ -3237,14 +3237,14 @@ func checkTransactionSanity(tx *btcutil.Tx, chainParams *netparams.ChainParams) 
 		if totalSatoshi < 0 {
 			str := fmt.Sprintf("total value of all transaction "+
 				"outputs exceeds max allowed value of %v",
-				btcutil.MaxSatoshi)
+				chainParams.MaxSatoshi)
 			return ruleError(blockchain.ErrBadTxOutValue, str)
 		}
-		if totalSatoshi > btcutil.MaxSatoshi {
+		if totalSatoshi > chainParams.MaxSatoshi {
 			str := fmt.Sprintf("total value of all transaction "+
 				"outputs is %v which is higher than max "+
 				"allowed value of %v", totalSatoshi,
-				btcutil.MaxSatoshi)
+				chainParams.MaxSatoshi)
 			return ruleError(blockchain.ErrBadTxOutValue, str)
 		}
 	}
