@@ -52,6 +52,8 @@ type ChainParams struct {
 	// CheckPoW is a function that will check the proof-of-work validity for a
 	// block header. If CheckPoW is nil, the standard Bitcoin protocol is used.
 	CheckPoW func(*wire.BlockHeader) error
+	// MaxSatoshi varies between assets.
+	MaxSatoshi int64
 }
 
 func (c *ChainParams) BTCDParams() *chaincfg.Params {

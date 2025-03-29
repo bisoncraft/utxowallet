@@ -56,7 +56,7 @@ var (
 	txmgrLog  = backendLog.Logger("TMGR")
 	chainLog  = backendLog.Logger("CHNS")
 	grpcLog   = backendLog.Logger("GRPC")
-	btcnLog   = backendLog.Logger("BTCN")
+	spvLog    = backendLog.Logger("SPV")
 )
 
 // Initialize package-global logger variables.
@@ -65,7 +65,7 @@ func init() {
 	wtxmgr.UseLogger(txmgrLog)
 	chain.UseLogger(chainLog)
 	rpcclient.UseLogger(chainLog)
-	spv.UseLogger(btcnLog)
+	spv.UseLogger(spvLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -75,7 +75,7 @@ var subsystemLoggers = map[string]btclog.Logger{
 	"TMGR": txmgrLog,
 	"CHNS": chainLog,
 	"GRPC": grpcLog,
-	"BTCN": btcnLog,
+	"SPV":  spvLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/bisoncraft/utxowallet/netparams"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
@@ -338,5 +339,6 @@ var BTCParams = map[string]*netparams.ChainParams{
 		BIP0034Height:            100000000, // Not active - Permit ver 1 blocks
 		BIP0065Height:            1351,      // Used by regression tests
 		BIP0066Height:            1251,      // Used by regression tests
+		MaxSatoshi:               btcutil.MaxSatoshi,
 	},
 }

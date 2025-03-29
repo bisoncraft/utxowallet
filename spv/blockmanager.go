@@ -224,7 +224,7 @@ func newBlockManager(cfg *blockManagerCfg) (*blockManager, error) {
 		peerChan:      make(chan interface{}, MaxPeers*3),
 		blockNtfnChan: make(chan blockntfns.BlockNtfn),
 		blkHeaderProgressLogger: newBlockProgressLogger(
-			"Processed", "block", log,
+			"Processed", "block headers", log,
 		),
 		fltrHeaderProgessLogger: newBlockProgressLogger(
 			"Verified", "filter header", log,
@@ -3054,4 +3054,231 @@ func (l *lightHeaderCtx) RelativeAncestorCtx(
 	return newLightHeaderCtx(
 		ancestorHeight, ancestor, l.store, l.headerList,
 	)
+}
+
+func ruleError(c blockchain.ErrorCode, desc string) blockchain.RuleError {
+	return blockchain.RuleError{ErrorCode: c, Description: desc}
+}
+
+// checkBlockSanity performs some preliminary checks on a block to ensure it is
+// sane before continuing with block processing.  These checks are context free.
+//
+// The flags do not modify the behavior of this function directly, however they
+// are needed to pass along to checkBlockHeaderSanity.
+func checkBlockSanity(block *btcutil.Block, chainParams *netparams.ChainParams, timeSource blockchain.MedianTimeSource) error {
+	flags := blockchain.BehaviorFlags(0)
+	if chainParams.CheckPoW != nil {
+		flags |= blockchain.BFNoPoWCheck | blockchain.BFFastAdd
+		if err := chainParams.CheckPoW(&block.MsgBlock().Header); err != nil {
+			return err
+		}
+	}
+
+	msgBlock := block.MsgBlock()
+	header := &msgBlock.Header
+	err := blockchain.CheckBlockHeaderSanity(header, chainParams.PowLimit, timeSource, flags)
+	if err != nil {
+		return err
+	}
+
+	// A block must have at least one transaction.
+	numTx := len(msgBlock.Transactions)
+	if numTx == 0 {
+		return ruleError(blockchain.ErrNoTransactions, "block does not contain "+
+			"any transactions")
+	}
+
+	// A block must not have more transactions than the max block payload or
+	// else it is certainly over the weight limit.
+	if numTx > blockchain.MaxBlockBaseSize {
+		str := fmt.Sprintf("block contains too many transactions - "+
+			"got %d, max %d", numTx, blockchain.MaxBlockBaseSize)
+		return ruleError(blockchain.ErrBlockTooBig, str)
+	}
+
+	// A block must not exceed the maximum allowed block payload when
+	// serialized.
+	serializedSize := msgBlock.SerializeSizeStripped()
+	if serializedSize > blockchain.MaxBlockBaseSize {
+		str := fmt.Sprintf("serialized block is too big - got %d, "+
+			"max %d", serializedSize, blockchain.MaxBlockBaseSize)
+		return ruleError(blockchain.ErrBlockTooBig, str)
+	}
+
+	// The first transaction in a block must be a coinbase.
+	transactions := block.Transactions()
+	if !blockchain.IsCoinBase(transactions[0]) {
+		return ruleError(blockchain.ErrFirstTxNotCoinbase, "first transaction in "+
+			"block is not a coinbase")
+	}
+
+	// A block must not have more than one coinbase.
+	for i, tx := range transactions[1:] {
+		if blockchain.IsCoinBase(tx) {
+			str := fmt.Sprintf("block contains second coinbase at "+
+				"index %d", i+1)
+			return ruleError(blockchain.ErrMultipleCoinbases, str)
+		}
+	}
+
+	// Do some preliminary checks on each transaction to ensure they are
+	// sane before continuing.
+	for _, tx := range transactions {
+		err := checkTransactionSanity(tx, chainParams)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Build merkle tree and ensure the calculated merkle root matches the
+	// entry in the block header.  This also has the effect of caching all
+	// of the transaction hashes in the block to speed up future hash
+	// checks.  Bitcoind builds the tree here and checks the merkle root
+	// after the following checks, but there is no reason not to check the
+	// merkle root matches here.
+	calcMerkleRoot := blockchain.CalcMerkleRoot(block.Transactions(), false)
+	if !header.MerkleRoot.IsEqual(&calcMerkleRoot) {
+		str := fmt.Sprintf("block merkle root is invalid - block "+
+			"header indicates %v, but calculated value is %v",
+			header.MerkleRoot, calcMerkleRoot)
+		return ruleError(blockchain.ErrBadMerkleRoot, str)
+	}
+
+	// Check for duplicate transactions.  This check will be fairly quick
+	// since the transaction hashes are already cached due to building the
+	// merkle tree above.
+	existingTxHashes := make(map[chainhash.Hash]struct{})
+	for _, tx := range transactions {
+		hash := tx.Hash()
+		if _, exists := existingTxHashes[*hash]; exists {
+			str := fmt.Sprintf("block contains duplicate "+
+				"transaction %v", hash)
+			return ruleError(blockchain.ErrDuplicateTx, str)
+		}
+		existingTxHashes[*hash] = struct{}{}
+	}
+
+	// The number of signature operations must be less than the maximum
+	// allowed per block.
+	totalSigOps := 0
+	for _, tx := range transactions {
+		// We could potentially overflow the accumulator so check for
+		// overflow.
+		lastSigOps := totalSigOps
+		totalSigOps += (blockchain.CountSigOps(tx) * blockchain.WitnessScaleFactor)
+		if totalSigOps < lastSigOps || totalSigOps > blockchain.MaxBlockSigOpsCost {
+			str := fmt.Sprintf("block contains too many signature "+
+				"operations - got %v, max %v", totalSigOps,
+				blockchain.MaxBlockSigOpsCost)
+			return ruleError(blockchain.ErrTooManySigOps, str)
+		}
+	}
+
+	return nil
+}
+
+// isNullOutpoint determines whether or not a previous transaction output point
+// is set.
+func isNullOutpoint(outpoint *wire.OutPoint) bool {
+	if outpoint.Index == math.MaxUint32 && outpoint.Hash == zeroHash {
+		return true
+	}
+	return false
+}
+
+// checkTransactionSanity performs some preliminary checks on a transaction to
+// ensure it is sane.  These checks are context free.
+func checkTransactionSanity(tx *btcutil.Tx, chainParams *netparams.ChainParams) error {
+	// A transaction must have at least one input.
+	msgTx := tx.MsgTx()
+	if len(msgTx.TxIn) == 0 {
+		return ruleError(blockchain.ErrNoTxInputs, "transaction has no inputs")
+	}
+
+	// A transaction must have at least one output.
+	if len(msgTx.TxOut) == 0 {
+		return ruleError(blockchain.ErrNoTxOutputs, "transaction has no outputs")
+	}
+
+	// A transaction must not exceed the maximum allowed block payload when
+	// serialized.
+	serializedTxSize := tx.MsgTx().SerializeSizeStripped()
+	if serializedTxSize > blockchain.MaxBlockBaseSize {
+		str := fmt.Sprintf("serialized transaction is too big - got "+
+			"%d, max %d", serializedTxSize, blockchain.MaxBlockBaseSize)
+		return ruleError(blockchain.ErrTxTooBig, str)
+	}
+
+	// Ensure the transaction amounts are in range.  Each transaction
+	// output must not be negative or more than the max allowed per
+	// transaction.  Also, the total of all outputs must abide by the same
+	// restrictions.  All amounts in a transaction are in a unit value known
+	// as a satoshi.  One bitcoin is a quantity of satoshi as defined by the
+	// SatoshiPerBitcoin constant.
+	var totalSatoshi int64
+	for _, txOut := range msgTx.TxOut {
+		satoshi := txOut.Value
+		if satoshi < 0 {
+			str := fmt.Sprintf("transaction output has negative "+
+				"value of %v", satoshi)
+			return ruleError(blockchain.ErrBadTxOutValue, str)
+		}
+		if satoshi > btcutil.MaxSatoshi {
+			str := fmt.Sprintf("transaction output value is "+
+				"higher than max allowed value: %v > %v ",
+				satoshi, btcutil.MaxSatoshi)
+			return ruleError(blockchain.ErrBadTxOutValue, str)
+		}
+
+		// Two's complement int64 overflow guarantees that any overflow
+		// is detected and reported.  This is impossible for Bitcoin, but
+		// perhaps possible if an alt increases the total money supply.
+		totalSatoshi += satoshi
+		if totalSatoshi < 0 {
+			str := fmt.Sprintf("total value of all transaction "+
+				"outputs exceeds max allowed value of %v",
+				btcutil.MaxSatoshi)
+			return ruleError(blockchain.ErrBadTxOutValue, str)
+		}
+		if totalSatoshi > btcutil.MaxSatoshi {
+			str := fmt.Sprintf("total value of all transaction "+
+				"outputs is %v which is higher than max "+
+				"allowed value of %v", totalSatoshi,
+				btcutil.MaxSatoshi)
+			return ruleError(blockchain.ErrBadTxOutValue, str)
+		}
+	}
+
+	// Check for duplicate transaction inputs.
+	existingTxOut := make(map[wire.OutPoint]struct{})
+	for _, txIn := range msgTx.TxIn {
+		if _, exists := existingTxOut[txIn.PreviousOutPoint]; exists {
+			return ruleError(blockchain.ErrDuplicateTxInputs, "transaction "+
+				"contains duplicate inputs")
+		}
+		existingTxOut[txIn.PreviousOutPoint] = struct{}{}
+	}
+
+	// Coinbase script length must be between min and max length.
+	if blockchain.IsCoinBase(tx) {
+		slen := len(msgTx.TxIn[0].SignatureScript)
+		if slen < blockchain.MinCoinbaseScriptLen || slen > blockchain.MaxCoinbaseScriptLen {
+			str := fmt.Sprintf("coinbase transaction script length "+
+				"of %d is out of range (min: %d, max: %d)",
+				slen, blockchain.MinCoinbaseScriptLen, blockchain.MaxCoinbaseScriptLen)
+			return ruleError(blockchain.ErrBadCoinbaseScriptLen, str)
+		}
+	} else {
+		// Previous transaction outputs referenced by the inputs to this
+		// transaction must not be null.
+		for _, txIn := range msgTx.TxIn {
+			if isNullOutpoint(&txIn.PreviousOutPoint) {
+				return ruleError(blockchain.ErrBadTxInput, "transaction "+
+					"input refers to previous output that "+
+					"is null")
+			}
+		}
+	}
+
+	return nil
 }

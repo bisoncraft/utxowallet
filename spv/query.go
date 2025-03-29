@@ -865,11 +865,11 @@ func (s *ChainService) GetBlock(blockHash chainhash.Hash,
 
 		// If this claims our block but doesn't pass the sanity check,
 		// the peer is trying to bamboozle us.
-		if err := blockchain.CheckBlockSanity(
+		if err := checkBlockSanity(
 			block,
 			// We don't need to check PoW because by the time we get
 			// here, it's been checked during header synchronization
-			s.chainParams.PowLimit,
+			s.chainParams,
 			s.timeSource,
 		); err != nil {
 			log.Warnf("Invalid block for %s received from %s: %v",
