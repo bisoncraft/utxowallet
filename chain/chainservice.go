@@ -1,10 +1,10 @@
 package chain
 
 import (
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -15,7 +15,7 @@ import (
 // methods of an *spv.ChainService
 type NeutrinoChainService interface {
 	Start() error
-	GetBlock(chainhash.Hash, ...spv.QueryOption) (*btcutil.Block, error)
+	GetBlock(chainhash.Hash, ...spv.QueryOption) (*bisonwire.BlockWithHeight, error)
 	GetBlockHeight(*chainhash.Hash) (int32, error)
 	BestBlock() (*headerfs.BlockStamp, error)
 	GetBlockHash(int64) (*chainhash.Hash, error)

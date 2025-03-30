@@ -157,29 +157,24 @@ func (w *Wallet) validateExtendedPubKey(pubKey *hdkeychain.ExtendedKey,
 	// The public key must have a version corresponding to the current
 	// chain.
 	if !w.isPubKeyForNet(pubKey) {
-		return fmt.Errorf("expected extended public key for current "+
-			"network %v", w.chainParams.Name)
+		return fmt.Errorf("expected extended public key for current network %v", w.chainParams.Name)
 	}
 
 	// Verify the extended public key's depth and child index based on
 	// whether it's an account key or not.
 	if isAccountKey {
 		if pubKey.Depth() != accountPubKeyDepth {
-			return errors.New("invalid account key, must be of the " +
-				"form m/purpose'/coin_type'/account'")
+			return errors.New("invalid account key, must be of the form m/purpose'/coin_type'/account'")
 		}
 		if pubKey.ChildIndex() < hdkeychain.HardenedKeyStart {
 			return errors.New("invalid account key, must be hardened")
 		}
 	} else {
 		if pubKey.Depth() != pubKeyDepth {
-			return errors.New("invalid account key, must be of the " +
-				"form m/purpose'/coin_type'/account'/change/" +
-				"address_index")
+			return errors.New("invalid account key, must be of the form m/purpose'/coin_type'/account'/change/address_index")
 		}
 		if pubKey.ChildIndex() >= hdkeychain.HardenedKeyStart {
-			return errors.New("invalid pulic key, must not be " +
-				"hardened")
+			return errors.New("invalid pulic key, must not be hardened")
 		}
 	}
 

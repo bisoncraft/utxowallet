@@ -1075,7 +1075,7 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 					nextIndex)
 				return nil, managerError(ErrKeyChain, str, err)
 			}
-			key.SetNet(s.rootManager.chainParams)
+			key.SetNet(s.rootManager.btcParams)
 
 			nextIndex++
 			nextKey = key
@@ -1305,7 +1305,7 @@ func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
 					nextIndex)
 				return managerError(ErrKeyChain, str, err)
 			}
-			key.SetNet(s.rootManager.chainParams)
+			key.SetNet(s.rootManager.btcParams)
 
 			nextIndex++
 			nextKey = key
@@ -1910,7 +1910,7 @@ func (s *ScopedKeyManager) ImportPrivateKey(ns walletdb.ReadWriteBucket,
 
 	// Ensure the address is intended for network the address manager is
 	// associated with.
-	if !wif.IsForNet(s.rootManager.chainParams) {
+	if !wif.IsForNet(s.rootManager.btcParams) {
 		str := fmt.Sprintf("private key is not for the same network the "+
 			"address manager is configured for (%s)",
 			s.rootManager.chainParams.Name)
@@ -1992,7 +1992,7 @@ func (s *ScopedKeyManager) importPublicKey(ns walletdb.ReadWriteBucket,
 	case NestedWitnessPubKey:
 		pubKeyHash := btcutil.Hash160(serializedPubKey)
 		p2wkhAddr, err := btcutil.NewAddressWitnessPubKeyHash(
-			pubKeyHash, s.rootManager.chainParams,
+			pubKeyHash, s.rootManager.btcParams,
 		)
 		if err != nil {
 			return err
@@ -2380,7 +2380,7 @@ func (s *ScopedKeyManager) ChainParams() *chaincfg.Params {
 	// NOTE: No need for mutex here since the net field does not change
 	// after the manager instance is created.
 
-	return s.rootManager.chainParams
+	return s.rootManager.btcParams
 }
 
 // AccountName returns the account name for the given account number stored in

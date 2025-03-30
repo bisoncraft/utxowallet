@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/assets"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/btcsuite/btcd/chaincfg"
 )
 
 // defaultDBTimeout specifies the timeout value when opening the wallet
@@ -38,7 +38,7 @@ func testWallet(t *testing.T) (*Wallet, func()) {
 	privPass := []byte("world")
 
 	loader := NewLoader(
-		&chaincfg.TestNet3Params, dir, true, defaultDBTimeout, 250,
+		assets.BTCParams["testnet"], dir, true, defaultDBTimeout, 250,
 		WithWalletSyncRetryInterval(10*time.Millisecond),
 	)
 	w, err := loader.CreateNewWallet(pubPass, privPass, seed, time.Now())
@@ -70,7 +70,7 @@ func testWalletWatchingOnly(t *testing.T) (*Wallet, func()) {
 
 	pubPass := []byte("hello")
 	loader := NewLoader(
-		&chaincfg.TestNet3Params, dir, true, defaultDBTimeout, 250,
+		assets.BTCParams["testnet"], dir, true, defaultDBTimeout, 250,
 		WithWalletSyncRetryInterval(10*time.Millisecond),
 	)
 	w, err := loader.CreateNewWatchingOnlyWallet(pubPass, time.Now())

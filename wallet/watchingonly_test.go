@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/assets"
 	_ "github.com/bisoncraft/utxowallet/walletdb/bdb"
-	"github.com/btcsuite/btcd/chaincfg"
 )
 
 // TestCreateWatchingOnly checks that we can construct a watching-only
@@ -26,7 +26,7 @@ func TestCreateWatchingOnly(t *testing.T) {
 	pubPass := []byte("hello")
 
 	loader := NewLoader(
-		&chaincfg.TestNet3Params, dir, true, defaultDBTimeout, 250,
+		assets.BTCParams["testnet"], dir, true, defaultDBTimeout, 250,
 		WithWalletSyncRetryInterval(10*time.Millisecond),
 	)
 	_, err = loader.CreateNewWatchingOnlyWallet(pubPass, time.Now())

@@ -13,7 +13,10 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
+// ChainParams are an extended version of btcd/chaincfg.Params that omit some
+// unnecessary fields and add some fields necessary for multi-asset needs.
 type ChainParams struct {
+	Chain                    string
 	Name                     string
 	Net                      wire.BitcoinNet
 	GenesisBlock             *wire.MsgBlock
@@ -21,8 +24,12 @@ type ChainParams struct {
 	TargetTimespan           time.Duration
 	TargetTimePerBlock       time.Duration
 	RetargetAdjustmentFactor int64
+	ReduceMinDifficulty      bool
+	MinDiffReductionTime     time.Duration
 	Checkpoints              []chaincfg.Checkpoint
 	PowLimit                 *big.Int
+	PowLimitBits             uint32
+	PoWNoRetargeting         bool
 	DNSSeeds                 []chaincfg.DNSSeed
 	DefaultPort              string
 
@@ -49,15 +56,23 @@ type ChainParams struct {
 	BIP0065Height int32
 	BIP0066Height int32
 
+	CoinbaseMaturity uint16
+
 	// CheckPoW is a function that will check the proof-of-work validity for a
 	// block header. If CheckPoW is nil, the standard Bitcoin protocol is used.
 	CheckPoW func(*wire.BlockHeader) error
 	// MaxSatoshi varies between assets.
 	MaxSatoshi int64
+
+	btcdParams *chaincfg.Params
 }
 
+// BTCDParams are the btcd.chaincfg.Params that correspond the ChainParams.
 func (c *ChainParams) BTCDParams() *chaincfg.Params {
-	return &chaincfg.Params{
+	if c.btcdParams != nil {
+		return c.btcdParams
+	}
+	c.btcdParams = &chaincfg.Params{
 		Name:                     c.Name,
 		Net:                      c.Net,
 		GenesisBlock:             c.GenesisBlock,
@@ -65,8 +80,12 @@ func (c *ChainParams) BTCDParams() *chaincfg.Params {
 		TargetTimespan:           c.TargetTimespan,
 		TargetTimePerBlock:       c.TargetTimePerBlock,
 		RetargetAdjustmentFactor: c.RetargetAdjustmentFactor,
+		ReduceMinDifficulty:      c.ReduceMinDifficulty,
+		MinDiffReductionTime:     c.MinDiffReductionTime,
 		Checkpoints:              c.Checkpoints,
 		PowLimit:                 c.PowLimit,
+		PowLimitBits:             c.PowLimitBits,
+		PoWNoRetargeting:         c.PoWNoRetargeting,
 		DNSSeeds:                 c.DNSSeeds,
 		DefaultPort:              c.DefaultPort,
 		Bech32HRPSegwit:          c.Bech32HRPSegwit,
@@ -81,5 +100,7 @@ func (c *ChainParams) BTCDParams() *chaincfg.Params {
 		BIP0034Height:            c.BIP0034Height,
 		BIP0065Height:            c.BIP0065Height,
 		BIP0066Height:            c.BIP0066Height,
+		CoinbaseMaturity:         c.CoinbaseMaturity,
 	}
+	return c.btcdParams
 }

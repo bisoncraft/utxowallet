@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bisoncraft/utxowallet/internal/prompt"
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -75,7 +76,8 @@ func WithWalletSyncRetryInterval(interval time.Duration) LoaderOption {
 type Loader struct {
 	cfg            *loaderConfig
 	callbacks      []func(*Wallet)
-	chainParams    *chaincfg.Params
+	chainParams    *netparams.ChainParams
+	btcParams      *chaincfg.Params
 	netDir         string
 	noFreelistSync bool
 	timeout        time.Duration
@@ -91,7 +93,7 @@ type Loader struct {
 // NewLoader constructs a Loader with an optional recovery window. If the
 // recovery window is non-zero, the wallet will attempt to recovery addresses
 // starting from the last SyncedTo height.
-func NewLoader(chainParams *chaincfg.Params, netDir string,
+func NewLoader(chainParams *netparams.ChainParams, netDir string,
 	noFreelistSync bool, timeout time.Duration, recoveryWindow uint32,
 	opts ...LoaderOption) *Loader {
 
@@ -102,6 +104,7 @@ func NewLoader(chainParams *chaincfg.Params, netDir string,
 
 	return &Loader{
 		cfg:            cfg,
+		btcParams:      chainParams.BTCDParams(),
 		chainParams:    chainParams,
 		netDir:         netDir,
 		noFreelistSync: noFreelistSync,
@@ -115,7 +118,7 @@ func NewLoader(chainParams *chaincfg.Params, netDir string,
 // users are free to use their own walletdb implementation (eg. leveldb, etcd)
 // to store the wallet. Given that the external DB may be shared an additional
 // function is also passed which will override Loader.WalletExists().
-func NewLoaderWithDB(chainParams *chaincfg.Params, recoveryWindow uint32,
+func NewLoaderWithDB(chainParams *netparams.ChainParams, recoveryWindow uint32,
 	db walletdb.DB, walletExists func() (bool, error),
 	opts ...LoaderOption) (*Loader, error) {
 
@@ -198,7 +201,7 @@ func (l *Loader) CreateNewWallet(pubPassphrase, privPassphrase, seed []byte,
 		}
 
 		// Derive the master extended key from the seed.
-		rootKey, err = hdkeychain.NewMaster(seed, l.chainParams)
+		rootKey, err = hdkeychain.NewMaster(seed, l.btcParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to derive master " +
 				"extended key")

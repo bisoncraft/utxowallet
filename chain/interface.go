@@ -3,6 +3,7 @@ package chain
 import (
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/bisoncraft/utxowallet/wtxmgr"
 	"github.com/btcsuite/btcd/btcutil"
@@ -35,7 +36,7 @@ type Interface interface {
 	Stop()
 	WaitForShutdown()
 	GetBestBlock() (*chainhash.Hash, int32, error)
-	GetBlock(*chainhash.Hash) (*wire.MsgBlock, error)
+	GetBlock(*chainhash.Hash) (*bisonwire.BlockWithHeight, error)
 	GetBlockHash(int64) (*chainhash.Hash, error)
 	GetBlockHeader(*chainhash.Hash) (*wire.BlockHeader, error)
 	IsCurrent() bool
@@ -95,7 +96,7 @@ type (
 		FoundExternalAddrs map[waddrmgr.KeyScope]map[uint32]struct{}
 		FoundInternalAddrs map[waddrmgr.KeyScope]map[uint32]struct{}
 		FoundOutPoints     map[wire.OutPoint]btcutil.Address
-		RelevantTxns       []*wire.MsgTx
+		RelevantTxns       []*bisonwire.Tx
 	}
 
 	// BlockDisconnected is a notifcation that the block described by the

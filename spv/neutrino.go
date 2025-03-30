@@ -1110,6 +1110,11 @@ func (s *ChainService) UnbanPeer(addr string, parmanent bool) error {
 	return s.ConnectNode(addr, parmanent)
 }
 
+// UnbanPeers removes all imposed bans.
+func (s *ChainService) UnbanPeers() error {
+	return s.banStore.UnbanAll()
+}
+
 // IsBanned returns true if the peer is banned, and false otherwise.
 func (s *ChainService) IsBanned(addr string) bool {
 	ipNet, err := banman.ParseIPNet(addr, nil)

@@ -9,14 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv/blockntfns"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/davecgh/go-spew/spew"
 )
@@ -32,7 +31,7 @@ type mockChainSource struct {
 	blockHeightIndex      map[chainhash.Hash]uint32
 	blockHashesByHeight   map[uint32]*chainhash.Hash
 	blockHeaders          map[chainhash.Hash]*wire.BlockHeader
-	blocks                map[chainhash.Hash]*btcutil.Block
+	blocks                map[chainhash.Hash]*bisonwire.BlockWithHeight
 	failGetFilter         bool // if true, returns nil filter in GetCFilter
 	filters               map[chainhash.Hash]*gcs.Filter
 	filterHeadersByHeight map[uint32]*chainhash.Hash
@@ -50,7 +49,7 @@ func newMockChainSource(numBlocks int) *mockChainSource {
 		blockHeightIndex:      make(map[chainhash.Hash]uint32),
 		blockHashesByHeight:   make(map[uint32]*chainhash.Hash),
 		blockHeaders:          make(map[chainhash.Hash]*wire.BlockHeader),
-		blocks:                make(map[chainhash.Hash]*btcutil.Block),
+		blocks:                make(map[chainhash.Hash]*bisonwire.BlockWithHeight),
 		filterHeadersByHeight: make(map[uint32]*chainhash.Hash),
 		filters:               make(map[chainhash.Hash]*gcs.Filter),
 	}
@@ -61,7 +60,12 @@ func newMockChainSource(numBlocks int) *mockChainSource {
 	chain.blockHeightIndex[*genesisHash] = 0
 	chain.blockHashesByHeight[0] = genesisHash
 	chain.blockHeaders[*genesisHash] = &genesisBlock.Header
-	chain.blocks[*genesisHash] = btcutil.NewBlock(genesisBlock)
+	chain.blocks[*genesisHash] = &bisonwire.BlockWithHeight{
+		Block: &bisonwire.Block{
+			Header:       genesisBlock.Header,
+			Transactions: []*bisonwire.Tx{{Chain: "btc", MsgTx: *genesisBlock.Transactions[0]}},
+		},
+	}
 
 	filter, _ := gcs.FromBytes(0, builder.DefaultP, builder.DefaultM, nil)
 	chain.filters[*genesisHash] = filter
@@ -115,7 +119,7 @@ func (c *mockChainSource) addNewBlockWithHeader(header *wire.BlockHeader,
 	c.blockHeightIndex[newHash] = newHeight
 	c.blockHashesByHeight[newHeight] = &newHash
 	c.blockHeaders[newHash] = header
-	c.blocks[newHash] = btcutil.NewBlock(wire.NewMsgBlock(header))
+	c.blocks[newHash] = &bisonwire.BlockWithHeight{Block: bisonwire.BlockFromMsgBlock("btc", wire.NewMsgBlock(header))}
 
 	newFilter, _ := gcs.FromBytes(0, builder.DefaultP, builder.DefaultM, nil)
 	c.filters[newHash] = newFilter
@@ -238,7 +242,7 @@ func (c *mockChainSource) GetBlockHeader(
 
 // GetBlock returns the block with the given hash.
 func (c *mockChainSource) GetBlock(hash chainhash.Hash,
-	_ ...QueryOption) (*btcutil.Block, error) {
+	_ ...QueryOption) (*bisonwire.BlockWithHeight, error) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -247,6 +251,7 @@ func (c *mockChainSource) GetBlock(hash chainhash.Hash,
 	if !ok {
 		return nil, errors.New("block not found")
 	}
+
 	return block, nil
 }
 
@@ -355,9 +360,9 @@ func newRescanTestContext(t *testing.T, numBlocks int, // nolint:unparam
 
 	blocksConnected := make(chan headerfs.BlockStamp)
 	blocksDisconnected := make(chan headerfs.BlockStamp)
-	ntfnHandlers := rpcclient.NotificationHandlers{
+	ntfnHandlers := NoteHandlers{
 		OnFilteredBlockConnected: func(height int32,
-			header *wire.BlockHeader, _ []*btcutil.Tx) {
+			header *wire.BlockHeader, _ []*bisonwire.Tx) {
 
 			blocksConnected <- headerfs.BlockStamp{
 				Hash:      header.BlockHash(),

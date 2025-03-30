@@ -1068,7 +1068,6 @@ func (p *Peer) handlePongMsg(msg *wire.MsgPong) {
 
 // readMessage reads the next bitcoin message from the peer with logging.
 func (p *Peer) readMessage(encoding wire.MessageEncoding) (wire.Message, []byte, error) {
-
 	n, msg, buf, err := bisonwire.ReadMessageWithEncodingN(p.conn,
 		p.ProtocolVersion(), p.cfg.Chain, p.cfg.Net, encoding)
 	atomic.AddUint64(&p.bytesReceived, uint64(n))
@@ -1420,9 +1419,8 @@ out:
 			// matches bitcoind's behavior and is necessary since
 			// compact blocks negotiation occurs after the
 			// handshake.
-			if err == wire.ErrUnknownMessage {
-				log.Debugf("Received unknown message from %s:"+
-					" %v", p, err)
+			if errors.Is(err, wire.ErrUnknownMessage) {
+				log.Debugf("Received unknown message from %s: %v", p, err)
 				idleTimer.Reset(idleTimeout)
 				continue
 			}
@@ -1510,14 +1508,14 @@ out:
 				p.cfg.Listeners.OnMemPool(p, msg)
 			}
 
-		case *wire.MsgTx:
+		case *bisonwire.Tx:
 			if p.cfg.Listeners.OnTx != nil {
-				p.cfg.Listeners.OnTx(p, msg)
+				p.cfg.Listeners.OnTx(p, &msg.MsgTx)
 			}
 
-		case *wire.MsgBlock:
+		case *bisonwire.Block:
 			if p.cfg.Listeners.OnBlock != nil {
-				p.cfg.Listeners.OnBlock(p, msg, buf)
+				p.cfg.Listeners.OnBlock(p, msg.MsgBlock(), buf)
 			}
 
 		case *wire.MsgInv:
@@ -1892,7 +1890,7 @@ out:
 //
 // This function is safe for concurrent access.
 func (p *Peer) QueueMessage(msg wire.Message, doneChan chan<- struct{}) {
-	p.QueueMessageWithEncoding(msg, doneChan, wire.BaseEncoding)
+	p.QueueMessageWithEncoding(msg, doneChan, wire.LatestEncoding)
 }
 
 // QueueMessageWithEncoding adds the passed bitcoin message to the peer send
@@ -2174,7 +2172,7 @@ func (p *Peer) waitToFinishNegotiation(pver uint32) error {
 	// have to wait for verack.
 	for {
 		remoteMsg, _, err := p.readMessage(wire.LatestEncoding)
-		if err == wire.ErrUnknownMessage {
+		if errors.Is(err, wire.ErrUnknownMessage) {
 			continue
 		} else if err != nil {
 			return err
@@ -2383,7 +2381,7 @@ func newPeerBase(origCfg *Config, inbound bool) *Peer {
 
 	p := Peer{
 		inbound:         inbound,
-		wireEncoding:    wire.BaseEncoding,
+		wireEncoding:    wire.LatestEncoding,
 		knownInventory:  lru.NewCache(maxKnownInventory),
 		stallControl:    make(chan stallControlMsg, 1), // nonblocking sync
 		outputQueue:     make(chan outMsg, outputBufferSize),

@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
@@ -94,7 +94,7 @@ type UtxoScannerConfig struct {
 	BlockFilterMatches func(ro *rescanOptions, blockHash *chainhash.Hash) (bool, error)
 
 	// GetBlock fetches a block from the p2p network.
-	GetBlock func(chainhash.Hash, ...QueryOption) (*btcutil.Block, error)
+	GetBlock func(chainhash.Hash, ...QueryOption) (*bisonwire.BlockWithHeight, error)
 }
 
 // UtxoScanner batches calls to GetUtxo so that a single scan can search for
@@ -368,7 +368,7 @@ scanToEnd:
 
 		log.Debugf("Processing block height=%d hash=%s", height, hash)
 
-		reporter.ProcessBlock(block.MsgBlock(), newReqs, height)
+		reporter.ProcessBlock(block.Block, newReqs, height)
 		reporter.NotifyProgress(height)
 	}
 

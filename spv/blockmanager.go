@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/blockntfns"
@@ -98,7 +99,7 @@ type blockManagerCfg struct {
 	BanPeer func(addr string, reason banman.Reason) error
 
 	// GetBlock fetches a block from the p2p network.
-	GetBlock func(chainhash.Hash, ...QueryOption) (*btcutil.Block, error)
+	GetBlock func(chainhash.Hash, ...QueryOption) (*bisonwire.BlockWithHeight, error)
 
 	// firstPeerSignal is a channel that's sent upon once the main daemon
 	// has made its first peer connection. We use this to ensure we don't
@@ -1608,7 +1609,7 @@ func (b *blockManager) detectBadPeers(headers map[string]*wire.MsgCFHeaders,
 		len(headers))
 
 	return resolveFilterMismatchFromBlock(
-		block.MsgBlock(), fType, filtersFromPeers,
+		block.Block, fType, filtersFromPeers,
 
 		// We'll require a strict majority of our peers to agree on
 		// filters.
@@ -1633,7 +1634,7 @@ func (b *blockManager) detectBadPeers(headers map[string]*wire.MsgCFHeaders,
 //  3. If we cannot detect which filters are invalid from the block
 //     contents, we ban peers serving filters different from the majority of
 //     peers.
-func resolveFilterMismatchFromBlock(block *wire.MsgBlock,
+func resolveFilterMismatchFromBlock(block *bisonwire.Block,
 	fType wire.FilterType, filtersFromPeers map[string]*gcs.Filter,
 	threshold int) ([]string, error) {
 
@@ -1664,7 +1665,7 @@ func resolveFilterMismatchFromBlock(block *wire.MsgBlock,
 		// the inputs we can also derive most of the scripts of the
 		// outputs being spent (at least for standard scripts).
 		numOpReturns, err := VerifyBasicBlockFilter(
-			filter, btcutil.NewBlock(block),
+			filter, block,
 		)
 		if err != nil {
 			// Mark peer bad if we cannot verify its filter.
@@ -2789,6 +2790,10 @@ func (b *blockManager) checkHeaderSanity(blockHeader *wire.BlockHeader,
 
 	flags := blockchain.BehaviorFlags(0)
 	if b.cfg.ChainParams.CheckPoW != nil {
+		// Adding BFFastAdd because of a slight difference in how Litecoin and
+		// Bitcoin handle block header sanity checks. See ltcd's
+		// calcNextRequiredDifficulty
+		//   "Litecoin fixes an issue where a 51% can change..."
 		flags |= blockchain.BFNoPoWCheck | blockchain.BFFastAdd
 		if err := b.cfg.ChainParams.CheckPoW(blockHeader); err != nil {
 			return err
@@ -3065,16 +3070,21 @@ func ruleError(c blockchain.ErrorCode, desc string) blockchain.RuleError {
 //
 // The flags do not modify the behavior of this function directly, however they
 // are needed to pass along to checkBlockHeaderSanity.
-func checkBlockSanity(block *btcutil.Block, chainParams *netparams.ChainParams, timeSource blockchain.MedianTimeSource) error {
+func checkBlockSanity(block *bisonwire.Block, chainParams *netparams.ChainParams, timeSource blockchain.MedianTimeSource) error {
 	flags := blockchain.BehaviorFlags(0)
+	msgBlock := block.MsgBlock()
+
 	if chainParams.CheckPoW != nil {
+		// Adding BFFastAdd because of a slight difference in how Litecoin and
+		// Bitcoin handle block header sanity checks. See ltcd's
+		// calcNextRequiredDifficulty
+		//   "Litecoin fixes an issue where a 51% can change..."
 		flags |= blockchain.BFNoPoWCheck | blockchain.BFFastAdd
-		if err := chainParams.CheckPoW(&block.MsgBlock().Header); err != nil {
+		if err := chainParams.CheckPoW(&msgBlock.Header); err != nil {
 			return err
 		}
 	}
 
-	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
 	err := blockchain.CheckBlockHeaderSanity(header, chainParams.PowLimit, timeSource, flags)
 	if err != nil {
@@ -3106,15 +3116,15 @@ func checkBlockSanity(block *btcutil.Block, chainParams *netparams.ChainParams, 
 	}
 
 	// The first transaction in a block must be a coinbase.
-	transactions := block.Transactions()
-	if !blockchain.IsCoinBase(transactions[0]) {
+	msgTxs := msgBlock.Transactions
+	if !blockchain.IsCoinBaseTx(msgTxs[0]) {
 		return ruleError(blockchain.ErrFirstTxNotCoinbase, "first transaction in "+
 			"block is not a coinbase")
 	}
 
 	// A block must not have more than one coinbase.
-	for i, tx := range transactions[1:] {
-		if blockchain.IsCoinBase(tx) {
+	for i, tx := range msgTxs[1:] {
+		if blockchain.IsCoinBaseTx(tx) {
 			str := fmt.Sprintf("block contains second coinbase at "+
 				"index %d", i+1)
 			return ruleError(blockchain.ErrMultipleCoinbases, str)
@@ -3123,7 +3133,7 @@ func checkBlockSanity(block *btcutil.Block, chainParams *netparams.ChainParams, 
 
 	// Do some preliminary checks on each transaction to ensure they are
 	// sane before continuing.
-	for _, tx := range transactions {
+	for _, tx := range block.Transactions {
 		err := checkTransactionSanity(tx, chainParams)
 		if err != nil {
 			return err
@@ -3136,7 +3146,11 @@ func checkBlockSanity(block *btcutil.Block, chainParams *netparams.ChainParams, 
 	// checks.  Bitcoind builds the tree here and checks the merkle root
 	// after the following checks, but there is no reason not to check the
 	// merkle root matches here.
-	calcMerkleRoot := blockchain.CalcMerkleRoot(block.Transactions(), false)
+	btcutilTxs := make([]*btcutil.Tx, len(block.Transactions))
+	for i, tx := range block.Transactions {
+		btcutilTxs[i] = btcutil.NewTx(&tx.MsgTx)
+	}
+	calcMerkleRoot := blockchain.CalcMerkleRoot(btcutilTxs, false)
 	if !header.MerkleRoot.IsEqual(&calcMerkleRoot) {
 		str := fmt.Sprintf("block merkle root is invalid - block "+
 			"header indicates %v, but calculated value is %v",
@@ -3148,7 +3162,7 @@ func checkBlockSanity(block *btcutil.Block, chainParams *netparams.ChainParams, 
 	// since the transaction hashes are already cached due to building the
 	// merkle tree above.
 	existingTxHashes := make(map[chainhash.Hash]struct{})
-	for _, tx := range transactions {
+	for _, tx := range btcutilTxs {
 		hash := tx.Hash()
 		if _, exists := existingTxHashes[*hash]; exists {
 			str := fmt.Sprintf("block contains duplicate "+
@@ -3161,7 +3175,7 @@ func checkBlockSanity(block *btcutil.Block, chainParams *netparams.ChainParams, 
 	// The number of signature operations must be less than the maximum
 	// allowed per block.
 	totalSigOps := 0
-	for _, tx := range transactions {
+	for _, tx := range btcutilTxs {
 		// We could potentially overflow the accumulator so check for
 		// overflow.
 		lastSigOps := totalSigOps
@@ -3188,9 +3202,9 @@ func isNullOutpoint(outpoint *wire.OutPoint) bool {
 
 // checkTransactionSanity performs some preliminary checks on a transaction to
 // ensure it is sane.  These checks are context free.
-func checkTransactionSanity(tx *btcutil.Tx, chainParams *netparams.ChainParams) error {
+func checkTransactionSanity(tx *bisonwire.Tx, chainParams *netparams.ChainParams) error {
 	// A transaction must have at least one input.
-	msgTx := tx.MsgTx()
+	msgTx := &tx.MsgTx
 	if len(msgTx.TxIn) == 0 {
 		return ruleError(blockchain.ErrNoTxInputs, "transaction has no inputs")
 	}
@@ -3202,7 +3216,7 @@ func checkTransactionSanity(tx *btcutil.Tx, chainParams *netparams.ChainParams) 
 
 	// A transaction must not exceed the maximum allowed block payload when
 	// serialized.
-	serializedTxSize := tx.MsgTx().SerializeSizeStripped()
+	serializedTxSize := msgTx.SerializeSizeStripped()
 	if serializedTxSize > blockchain.MaxBlockBaseSize {
 		str := fmt.Sprintf("serialized transaction is too big - got "+
 			"%d, max %d", serializedTxSize, blockchain.MaxBlockBaseSize)
@@ -3260,7 +3274,7 @@ func checkTransactionSanity(tx *btcutil.Tx, chainParams *netparams.ChainParams) 
 	}
 
 	// Coinbase script length must be between min and max length.
-	if blockchain.IsCoinBase(tx) {
+	if blockchain.IsCoinBaseTx(&tx.MsgTx) {
 		slen := len(msgTx.TxIn[0].SignatureScript)
 		if slen < blockchain.MinCoinbaseScriptLen || slen > blockchain.MaxCoinbaseScriptLen {
 			str := fmt.Sprintf("coinbase transaction script length "+

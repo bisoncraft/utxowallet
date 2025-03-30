@@ -21,7 +21,7 @@ import (
 // provided path.
 func createWallet(cfg *config, netDir string, netParams *netparams.ChainParams) error {
 	loader := wallet.NewLoader(
-		netParams.BTCDParams(), netDir, true, cfg.DBTimeout, 250,
+		netParams, netDir, true, cfg.DBTimeout, 250,
 	)
 
 	// Start by prompting for the private passphrase.  When there is an

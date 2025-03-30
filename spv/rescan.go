@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv/blockntfns"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
 	"github.com/btcsuite/btcd/btcjson"
@@ -18,7 +19,6 @@ import (
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -55,7 +55,7 @@ type ChainSource interface {
 	GetBlockHeader(*chainhash.Hash) (*wire.BlockHeader, uint32, error)
 
 	// GetBlock returns the block with the given hash.
-	GetBlock(chainhash.Hash, ...QueryOption) (*btcutil.Block, error)
+	GetBlock(chainhash.Hash, ...QueryOption) (*bisonwire.BlockWithHeight, error)
 
 	// GetFilterHeaderByHeight returns the filter header of the block with
 	// the given height.
@@ -84,11 +84,21 @@ type ChainSource interface {
 // rescan progress.
 type ScanProgressHandler func(lastProcessedBlock uint32)
 
+type NoteHandlers struct {
+	OnBlockConnected            func(hash *chainhash.Hash, height int32, t time.Time)
+	OnFilteredBlockConnected    func(height int32, header *wire.BlockHeader, txs []*bisonwire.Tx)
+	OnBlockDisconnected         func(hash *chainhash.Hash, height int32, t time.Time)
+	OnFilteredBlockDisconnected func(height int32, header *wire.BlockHeader)
+
+	// Just used in testing
+	OnRecvTx func(transaction *bisonwire.Tx, details *btcjson.BlockDetails)
+}
+
 // rescanOptions holds the set of functional parameters for Rescan.
 type rescanOptions struct {
 	queryOptions []QueryOption
 
-	ntfn            rpcclient.NotificationHandlers
+	ntfn            NoteHandlers
 	progressHandler ScanProgressHandler
 
 	startTime  time.Time
@@ -123,7 +133,7 @@ func QueryOptions(options ...QueryOption) RescanOption {
 
 // NotificationHandlers specifies notification handlers for the rescan. These
 // will always run in the same goroutine as the caller.
-func NotificationHandlers(ntfn rpcclient.NotificationHandlers) RescanOption {
+func NotificationHandlers(ntfn NoteHandlers) RescanOption {
 	return func(ro *rescanOptions) {
 		ro.ntfn = ntfn
 	}
@@ -856,7 +866,7 @@ func (rs *rescanState) notifyBlock() error {
 
 	// Find relevant transactions based on watch list. If scanning is
 	// false, we can safely assume this block has no relevant transactions.
-	var relevantTxs []*btcutil.Tx
+	var relevantTxs []*bisonwire.Tx
 	if len(ro.watchList) != 0 && rs.scanning {
 		// If we have a non-empty watch list, then we need to see if it
 		// matches the rescan's filters, so we get the basic filter
@@ -985,7 +995,7 @@ func (rs *rescanState) handleBlockConnected(ntfn *blockntfns.Connected) error {
 // extractBlockMatches fetches the target block from the network, and filters
 // out any relevant transactions found within the block.
 func extractBlockMatches(chain ChainSource, ro *rescanOptions,
-	curStamp *headerfs.BlockStamp, filter *gcs.Filter) ([]*btcutil.Tx,
+	curStamp *headerfs.BlockStamp, filter *gcs.Filter) ([]*bisonwire.Tx,
 	error) {
 
 	// We've matched. Now we actually get the block and cycle through the
@@ -999,26 +1009,27 @@ func extractBlockMatches(chain ChainSource, ro *rescanOptions,
 			"network", curStamp.Height, curStamp.Hash)
 	}
 
+	blockHeader := &block.Block.Header
+
 	// Before we go through the transactions, let's make sure the filter we
 	// got from our peer is valid and includes all spent previous output
 	// scripts. If there's a problem, the error returned here will be
 	// interpreted by the block manager to disconnect/ban said peer.
-	if _, err := VerifyBasicBlockFilter(filter, block); err != nil {
+	if _, err := VerifyBasicBlockFilter(filter, block.Block); err != nil {
 		return nil, fmt.Errorf("error verifying filter against "+
 			"downloaded block %d (%s), possibly got invalid "+
 			"filter from peer: %v", curStamp.Height, curStamp.Hash,
 			err)
 	}
 
-	blockHeader := block.MsgBlock().Header
 	blockDetails := btcjson.BlockDetails{
-		Height: block.Height(),
-		Hash:   block.Hash().String(),
+		Height: int32(block.Height),
+		Hash:   blockHeader.BlockHash().String(),
 		Time:   blockHeader.Timestamp.Unix(),
 	}
 
-	relevantTxs := make([]*btcutil.Tx, 0, len(block.Transactions()))
-	for txIdx, tx := range block.Transactions() {
+	relevantTxs := make([]*bisonwire.Tx, 0, len(block.Block.Transactions))
+	for txIdx, tx := range block.Block.Transactions {
 		txDetails := blockDetails
 		txDetails.Index = txIdx
 
@@ -1026,9 +1037,6 @@ func extractBlockMatches(chain ChainSource, ro *rescanOptions,
 
 		if ro.spendsWatchedInput(tx) {
 			relevant = true
-			if ro.ntfn.OnRedeemingTx != nil { // nolint:staticcheck
-				ro.ntfn.OnRedeemingTx(tx, &txDetails) // nolint:staticcheck
-			}
 		}
 
 		// Even though the transaction may already be known as relevant
@@ -1042,9 +1050,6 @@ func extractBlockMatches(chain ChainSource, ro *rescanOptions,
 
 		if pays {
 			relevant = true
-			if ro.ntfn.OnRecvTx != nil { // nolint:staticcheck
-				ro.ntfn.OnRecvTx(tx, &txDetails) // nolint:staticcheck
-			}
 		}
 
 		if relevant {
@@ -1053,7 +1058,7 @@ func extractBlockMatches(chain ChainSource, ro *rescanOptions,
 			chainSource, ok := chain.(*RescanChainSource)
 			if ok {
 				chainSource.broadcaster.MarkAsConfirmed(
-					*tx.Hash(),
+					tx.TxHash(),
 				)
 			}
 		}
@@ -1107,7 +1112,7 @@ func (rs *rescanState) notifyBlockWithFilter(header *wire.BlockHeader,
 	// Based on what we find within the block or the filter, we'll be
 	// sending out a set of notifications with transactions that are
 	// relevant to the rescan.
-	var relevantTxs []*btcutil.Tx
+	var relevantTxs []*bisonwire.Tx
 
 	// If we actually have a filter, then we'll go ahead an attempt to
 	// match the items within the filter to ensure we create any relevant
@@ -1270,8 +1275,8 @@ func (ro *rescanOptions) updateFilter(chain ChainSource, update *updateOptions,
 
 // spendsWatchedInput returns whether the transaction matches the filter by
 // spending a watched input.
-func (ro *rescanOptions) spendsWatchedInput(tx *btcutil.Tx) bool {
-	for _, in := range tx.MsgTx().TxIn {
+func (ro *rescanOptions) spendsWatchedInput(tx *bisonwire.Tx) bool {
+	for _, in := range tx.TxIn {
 		for _, input := range ro.watchInputs {
 			switch {
 			// If we're watching for a zero outpoint, then we should
@@ -1300,11 +1305,11 @@ func (ro *rescanOptions) spendsWatchedInput(tx *btcutil.Tx) bool {
 // paysWatchedAddr returns whether the transaction matches the filter by having
 // an output paying to a watched address. If that is the case, this also
 // updates the filter to watch the newly created output going forward.
-func (ro *rescanOptions) paysWatchedAddr(tx *btcutil.Tx) (bool, error) {
+func (ro *rescanOptions) paysWatchedAddr(tx *bisonwire.Tx) (bool, error) {
 	anyMatchingOutputs := false
 
 txOutLoop:
-	for outIdx, out := range tx.MsgTx().TxOut {
+	for outIdx, out := range tx.TxOut {
 		pkScript := out.PkScript
 
 		for _, addr := range ro.watchAddrs {
@@ -1328,9 +1333,9 @@ txOutLoop:
 			// Update the filter by also watching this created
 			// outpoint for the event in the future that it's
 			// spent.
-			hash := tx.Hash()
+			hash := tx.TxHash()
 			outPoint := wire.OutPoint{
-				Hash:  *hash,
+				Hash:  hash,
 				Index: uint32(outIdx),
 			}
 			ro.watchInputs = append(ro.watchInputs, InputWithScript{
@@ -1505,7 +1510,7 @@ type SpendReport struct {
 	//
 	// NOTE: This field will only be populated if the target output has
 	// been spent.
-	SpendingTx *wire.MsgTx
+	SpendingTx *bisonwire.Tx
 
 	// SpendingTxIndex is the input index of the transaction above which
 	// spends the target output.

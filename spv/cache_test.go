@@ -4,10 +4,10 @@ import (
 	"crypto/rand"
 	"testing"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv/cache"
 	"github.com/bisoncraft/utxowallet/spv/cache/lru"
 	"github.com/bisoncraft/utxowallet/spv/filterdb"
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
@@ -40,7 +40,7 @@ func TestBlockFilterCaches(t *testing.T) {
 	var (
 		blockHashes []chainhash.Hash
 		filters     []*gcs.Filter
-		blocks      []*btcutil.Block
+		blocks      []*bisonwire.Block
 	)
 	for i := 0; i < numElements; i++ {
 		var blockHash chainhash.Hash
@@ -65,7 +65,7 @@ func TestBlockFilterCaches(t *testing.T) {
 		}
 
 		msgBlock := &wire.MsgBlock{}
-		block := btcutil.NewBlock(msgBlock)
+		block := bisonwire.BlockFromMsgBlock("btc", msgBlock)
 		blocks = append(blocks, block)
 
 		// Add the block to the block caches, using the block INV
@@ -74,7 +74,7 @@ func TestBlockFilterCaches(t *testing.T) {
 			wire.InvTypeWitnessBlock, &blockHash,
 		)
 		for _, c := range blockCaches {
-			_, _ = c.Put(*blockKey, &CacheableBlock{block})
+			_, _ = c.Put(*blockKey, &CacheableBlock{&bisonwire.BlockWithHeight{Block: block}})
 		}
 	}
 

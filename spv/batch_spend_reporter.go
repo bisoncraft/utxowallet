@@ -1,6 +1,7 @@
 package spv
 
 import (
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -77,7 +78,8 @@ func (b *batchSpendReporter) NotifyUnspentAndUnfound() {
 // FailRemaining will return an error to all remaining requests in the event we
 // experience a critical rescan error. The error is threaded through to allow
 // the syntax:
-//     return reporter.FailRemaining(err)
+//
+//	return reporter.FailRemaining(err)
 func (b *batchSpendReporter) FailRemaining(err error) error {
 	for outpoint, requests := range b.requests {
 		op := outpoint
@@ -111,7 +113,7 @@ func (b *batchSpendReporter) notifyRequests(
 // spends may occur. Afterwards, any spends detected in the block are
 // immediately dispatched, and the watchlist updated in preparation of filtering
 // the next block.
-func (b *batchSpendReporter) ProcessBlock(blk *wire.MsgBlock,
+func (b *batchSpendReporter) ProcessBlock(blk *bisonwire.Block,
 	newReqs []*GetUtxoRequest, height uint32) {
 
 	// If any requests want the UTXOs at this height, scan the block to find
@@ -165,7 +167,7 @@ func (b *batchSpendReporter) addNewRequests(reqs []*GetUtxoRequest) {
 // outpoint is not spent later on. Requests corresponding to outpoints that are
 // not found in the block will return a nil spend report to indicate that the
 // UTXO was not found.
-func (b *batchSpendReporter) findInitialTransactions(block *wire.MsgBlock,
+func (b *batchSpendReporter) findInitialTransactions(block *bisonwire.Block,
 	newReqs []*GetUtxoRequest, height uint32) map[wire.OutPoint]*SpendReport {
 
 	// First, construct  a reverse index from txid to all a list of requests
@@ -209,7 +211,7 @@ func (b *batchSpendReporter) findInitialTransactions(block *wire.MsgBlock,
 				continue
 			}
 
-			h := block.BlockHash()
+			h := block.Header.BlockHash()
 
 			initialTxns[op] = &SpendReport{
 				Output:      txOuts[op.Index],
@@ -247,7 +249,7 @@ func (b *batchSpendReporter) findInitialTransactions(block *wire.MsgBlock,
 // notifySpends finds any transactions in the block that spend from our watched
 // outpoints. If a spend is detected, it is immediately delivered and cleaned up
 // from the reporter's internal state.
-func (b *batchSpendReporter) notifySpends(block *wire.MsgBlock,
+func (b *batchSpendReporter) notifySpends(block *bisonwire.Block,
 	height uint32) map[wire.OutPoint]*SpendReport {
 
 	spends := make(map[wire.OutPoint]*SpendReport)

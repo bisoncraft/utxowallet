@@ -178,7 +178,7 @@ func TestLabelTransaction(t *testing.T) {
 			// write txdetail to disk.
 			if test.txKnown {
 				rec, err := wtxmgr.NewTxRecord(
-					TstSerializedTx, time.Now(),
+					"btc", TstSerializedTx, time.Now(),
 				)
 				if err != nil {
 					t.Fatal(err)
@@ -228,7 +228,7 @@ func TestLabelTransaction(t *testing.T) {
 // and a non-existing transaction from the wallet like we expect.
 func TestGetTransaction(t *testing.T) {
 	t.Parallel()
-	rec, err := wtxmgr.NewTxRecord(TstSerializedTx, time.Now())
+	rec, err := wtxmgr.NewTxRecord("btc", TstSerializedTx, time.Now())
 	require.NoError(t, err)
 
 	tests := []struct {

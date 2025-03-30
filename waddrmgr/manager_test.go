@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/assets"
 	"github.com/bisoncraft/utxowallet/snacl"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -1818,7 +1819,7 @@ func testConvertWatchingOnly(tc *testContext) bool {
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
 		var err error
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		return err
 	})
 	if err != nil {
@@ -1858,7 +1859,7 @@ func testConvertWatchingOnly(tc *testContext) bool {
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
 		var err error
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		return err
 	})
 	if err != nil {
@@ -1986,7 +1987,7 @@ func testManagerCase(t *testing.T, caseName string,
 		// returned.
 		err := walletdb.View(db, func(tx walletdb.ReadTx) error {
 			ns := tx.ReadBucket(waddrmgrNamespaceKey)
-			_, err := Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+			_, err := Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 			return err
 		})
 		if !checkManagerError(t, "Open non-existent", err, ErrNoExist) {
@@ -2003,12 +2004,12 @@ func testManagerCase(t *testing.T, caseName string,
 		}
 		err = Create(
 			ns, caseKey, pubPassphrase, casePrivPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}
@@ -2033,7 +2034,7 @@ func testManagerCase(t *testing.T, caseName string,
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 		return Create(
 			ns, caseKey, pubPassphrase, casePrivPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 	})
 	if !checkManagerError(t, fmt.Sprintf("(%s) Create existing", caseName),
@@ -2092,7 +2093,7 @@ func testManagerCase(t *testing.T, caseName string,
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
 		var err error
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		return err
 	})
 	if err != nil {
@@ -2183,7 +2184,7 @@ func TestManagerHigherVersion(t *testing.T) {
 	// should expect to see the error ErrUpgrade.
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		_, err := Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		_, err := Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		return err
 	})
 	if !checkManagerError(t, "Upgrade needed", err, ErrUpgrade) {
@@ -2207,7 +2208,7 @@ func TestManagerHigherVersion(t *testing.T) {
 	// ErrUpgrade.
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		_, err := Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		_, err := Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		return err
 	})
 	if !checkManagerError(t, "Upgrade needed", err, ErrUpgrade) {
@@ -2329,13 +2330,13 @@ func TestScopedKeyManagerManagement(t *testing.T) {
 		}
 		err = Create(
 			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
 
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}
@@ -2495,7 +2496,7 @@ func TestScopedKeyManagerManagement(t *testing.T) {
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
 		var err error
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}
@@ -2586,13 +2587,13 @@ func TestRootHDKeyNeutering(t *testing.T) {
 		}
 		err = Create(
 			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
 
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}
@@ -2678,13 +2679,13 @@ func TestNewRawAccount(t *testing.T) {
 		}
 		err = Create(
 			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
 
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}
@@ -2737,12 +2738,12 @@ func TestNewRawAccountWatchingOnly(t *testing.T) {
 		}
 		err = Create(
 			ns, nil, pubPassphrase, nil,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}
@@ -2804,12 +2805,12 @@ func TestNewRawAccountHybrid(t *testing.T) {
 		}
 		err = Create(
 			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		return err
 	})
 	if err != nil {
@@ -2924,12 +2925,12 @@ func TestDeriveFromKeyPathCache(t *testing.T) {
 		}
 		err = Create(
 			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}
@@ -3022,12 +3023,12 @@ func TestTaprootPubKeyDerivation(t *testing.T) {
 		}
 		err = Create(
 			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}
@@ -3164,12 +3165,12 @@ func TestManagedAddressValidation(t *testing.T) {
 		}
 		err = Create(
 			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		if err != nil {
 			return err
 		}

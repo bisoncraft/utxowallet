@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/bisoncraft/utxowallet/assets"
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
@@ -181,13 +182,13 @@ var (
 	// transactions we're interested in that are in the blockchain we're
 	// following as signalled by OnBlockConnected, OnBlockDisconnected,
 	// OnRecvTx, and OnRedeemingTx.
-	ourKnownTxsByBlock = make(map[chainhash.Hash][]*btcutil.Tx)
+	ourKnownTxsByBlock = make(map[chainhash.Hash][]*bisonwire.Tx)
 
 	// ourKnownTxsByFilteredBlock lets the rescan goroutine keep track of
 	// transactions we're interested in that are in the blockchain we're
 	// following as signalled by OnFilteredBlockConnected and
 	// OnFilteredBlockDisconnected.
-	ourKnownTxsByFilteredBlock = make(map[chainhash.Hash][]*btcutil.Tx)
+	ourKnownTxsByFilteredBlock = make(map[chainhash.Hash][]*bisonwire.Tx)
 )
 
 // secSource is an implementation of btcwallet/txauthor/SecretsSource that
@@ -885,23 +886,24 @@ func testRandomBlocks(harness *neutrinoHarness, t *testing.T) {
 				return
 			}
 			// Check that network and RPC blocks match.
+			msgBlock := haveBlock.Block.MsgBlock()
 			if !reflect.DeepEqual(
-				*haveBlock.MsgBlock(), *wantBlock,
+				*msgBlock, *wantBlock,
 			) {
 
 				errChan <- fmt.Errorf("Block from network "+
 					"doesn't match block from RPC. Want: "+
 					"%s, RPC: %s, network: %s", blockHash,
 					wantBlock.BlockHash(),
-					haveBlock.MsgBlock().BlockHash())
+					msgBlock.BlockHash())
 				return
 			}
 			// Check that block height matches what we have.
-			if height != uint32(haveBlock.Height()) {
+			if height != uint32(haveBlock.Height) {
 				errChan <- fmt.Errorf("Block height from "+
 					"network doesn't match expected "+
 					"height. Want: %v, network: %v",
-					height, haveBlock.Height())
+					height, haveBlock.Height)
 				return
 			}
 			// Get basic cfilter from network.
@@ -943,7 +945,7 @@ func testRandomBlocks(harness *neutrinoHarness, t *testing.T) {
 			}
 
 			inputScripts, err := fetchPrevInputScripts(
-				haveBlock.MsgBlock(),
+				msgBlock,
 				harness.h1,
 			)
 			if err != nil {
@@ -954,7 +956,7 @@ func testRandomBlocks(harness *neutrinoHarness, t *testing.T) {
 
 			// Calculate basic filter from block.
 			calcFilter, err := builder.BuildBasicFilter(
-				haveBlock.MsgBlock(), inputScripts,
+				msgBlock, inputScripts,
 			)
 			if err != nil {
 				errChan <- fmt.Errorf("Couldn't build basic "+
@@ -1396,7 +1398,7 @@ func startRescan(t *testing.T, svc *spv.ChainService, addr btcutil.Address,
 		spv.WatchAddrs(addr),
 		spv.StartBlock(startBlock),
 		spv.NotificationHandlers(
-			rpcclient.NotificationHandlers{
+			spv.NoteHandlers{
 				OnBlockConnected: func(
 					hash *chainhash.Hash,
 					height int32, time time.Time) {
@@ -1418,7 +1420,7 @@ func startRescan(t *testing.T, svc *spv.ChainService, addr btcutil.Address,
 					curBlockHeight = height - 1
 					rescanMtx.Unlock()
 				},
-				OnRecvTx: func(tx *btcutil.Tx,
+				OnRecvTx: func(tx *bisonwire.Tx,
 					details *btcjson.BlockDetails) {
 
 					rescanMtx.Lock()
@@ -1439,31 +1441,31 @@ func startRescan(t *testing.T, svc *spv.ChainService, addr btcutil.Address,
 						[]byte("rv")...)
 					rescanMtx.Unlock()
 				},
-				OnRedeemingTx: func(tx *btcutil.Tx,
-					details *btcjson.BlockDetails) {
+				// OnRedeemingTx: func(tx *btcutil.Tx,
+				// 	details *btcjson.BlockDetails) {
 
-					rescanMtx.Lock()
-					hash, err := chainhash.
-						NewHashFromStr(
-							details.Hash)
-					if err != nil {
-						t.Errorf("Couldn't "+
-							"decode hash "+
-							"%s: %s",
-							details.Hash,
-							err)
-					}
-					ourKnownTxsByBlock[*hash] = append(
-						ourKnownTxsByBlock[*hash],
-						tx)
-					gotLog = append(gotLog,
-						[]byte("rd")...)
-					rescanMtx.Unlock()
-				},
+				// 	rescanMtx.Lock()
+				// 	hash, err := chainhash.
+				// 		NewHashFromStr(
+				// 			details.Hash)
+				// 	if err != nil {
+				// 		t.Errorf("Couldn't "+
+				// 			"decode hash "+
+				// 			"%s: %s",
+				// 			details.Hash,
+				// 			err)
+				// 	}
+				// 	ourKnownTxsByBlock[*hash] = append(
+				// 		ourKnownTxsByBlock[*hash],
+				// 		tx)
+				// 	gotLog = append(gotLog,
+				// 		[]byte("rd")...)
+				// 	rescanMtx.Unlock()
+				// },
 				OnFilteredBlockConnected: func(
 					height int32,
 					header *wire.BlockHeader,
-					relevantTxs []*btcutil.Tx) {
+					relevantTxs []*bisonwire.Tx) {
 
 					rescanMtx.Lock()
 					ourKnownTxsByFilteredBlock[header.BlockHash()] =

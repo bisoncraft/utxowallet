@@ -103,9 +103,7 @@ func (w *Wallet) handleChainNotifications() {
 						return ErrWalletShuttingDown
 					}
 
-					log.Errorf("Unable to synchronize "+
-						"wallet to chain, trying "+
-						"again in %s: %v",
+					log.Errorf("Unable to synchronize wallet to chain, trying again in %s: %v",
 						w.syncRetryInterval, err)
 
 					continue
@@ -152,8 +150,7 @@ func (w *Wallet) handleChainNotifications() {
 
 				err = waitForSync(birthdayBlock)
 				if err != nil {
-					log.Infof("Stopped waiting for wallet "+
-						"sync due to error: %v", err)
+					log.Infof("Stopped waiting for wallet sync due to error: %v", err)
 
 					return
 				}
@@ -338,9 +335,9 @@ func (w *Wallet) addRelevantTx(dbtx walletdb.ReadWriteTx, rec *wtxmgr.TxRecord,
 
 	// Check every output to determine whether it is controlled by a wallet
 	// key.  If so, mark the output as a credit.
-	for i, output := range rec.MsgTx.TxOut {
+	for i, output := range rec.Tx.TxOut {
 		_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.PkScript,
-			w.chainParams)
+			w.btcParams)
 		if err != nil {
 			// Non-standard outputs are skipped.
 			continue

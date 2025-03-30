@@ -285,7 +285,7 @@ func (w *Wallet) rescanWithTarget(addrs []btcutil.Address,
 	outpoints := make(map[wire.OutPoint]btcutil.Address, len(unspent))
 	for _, output := range unspent {
 		_, outputAddrs, _, err := txscript.ExtractPkScriptAddrs(
-			output.PkScript, w.chainParams,
+			output.PkScript, w.btcParams,
 		)
 		if err != nil {
 			return err

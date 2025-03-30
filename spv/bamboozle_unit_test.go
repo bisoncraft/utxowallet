@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/bisoncraft/utxowallet/assets"
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcutil/gcs"
@@ -116,7 +117,7 @@ var (
 
 	// For the purpose of the cfheader mismatch test, we actually only need
 	// to have the scripts of each transaction present.
-	block = &wire.MsgBlock{
+	msgBlock = &wire.MsgBlock{
 		Transactions: []*wire.MsgTx{
 			{
 				TxOut: []*wire.TxOut{
@@ -148,21 +149,21 @@ var (
 			},
 		},
 	}
-	correctFilter, _ = builder.BuildBasicFilter(block, nil)
-	oldFilter, _     = buildNonPushScriptFilter(block)
-	oldOldFilter, _  = buildAllPkScriptsFilter(block)
+	correctFilter, _ = builder.BuildBasicFilter(msgBlock, nil)
+	oldFilter, _     = buildNonPushScriptFilter(msgBlock)
+	oldOldFilter, _  = buildAllPkScriptsFilter(msgBlock)
 
 	// a filter missing the first output of the block.
 	missingElementFilter, _ = builder.BuildBasicFilter(
 		&wire.MsgBlock{
-			Transactions: block.Transactions[1:],
+			Transactions: msgBlock.Transactions[1:],
 		}, nil,
 	)
 
 	// a filter with one extra output script.
 	extraElementFilter, _ = builder.BuildBasicFilter(
 		&wire.MsgBlock{
-			Transactions: append(block.Transactions,
+			Transactions: append(msgBlock.Transactions,
 				&wire.MsgTx{
 					TxOut: []*wire.TxOut{
 						{
@@ -684,7 +685,7 @@ func TestResolveFilterMismatchFromBlock(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			badPeers, err := resolveFilterMismatchFromBlock(
-				block, wire.GCSFilterRegular, testCase.peerFilters,
+				bisonwire.BlockFromMsgBlock("btc", msgBlock), wire.GCSFilterRegular, testCase.peerFilters,
 				testCase.banThreshold,
 			)
 			if err != nil {

@@ -52,7 +52,7 @@ func (q *queryState) deepCopy() *queryState {
 
 func deepCopyTxDetails(d *TxDetails) *TxDetails {
 	cpy := *d
-	cpy.MsgTx = *d.MsgTx.Copy()
+	cpy.Tx.MsgTx = *d.Tx.MsgTx.Copy()
 	if cpy.SerializedTx != nil {
 		cpy.SerializedTx = make([]byte, len(cpy.SerializedTx))
 		copy(cpy.SerializedTx, d.SerializedTx)
@@ -150,7 +150,7 @@ func (q *queryState) compare(s *Store, ns walletdb.ReadBucket,
 func equalTxDetails(got, exp *TxDetails) error {
 	// Need to avoid using reflect.DeepEqual against slices, since it
 	// returns false for nil vs non-nil zero length slices.
-	if err := equalTxs(&got.MsgTx, &exp.MsgTx); err != nil {
+	if err := equalTxs(&got.Tx.MsgTx, &exp.Tx.MsgTx); err != nil {
 		return err
 	}
 
@@ -264,7 +264,7 @@ func TestStoreQueries(t *testing.T) {
 
 	// Insert an unmined transaction.  Mark no credits yet.
 	txA := spendOutput(&chainhash.Hash{}, 0, 100e8)
-	recA, err := NewTxRecordFromMsgTx(txA, timeNow())
+	recA, err := NewTxRecordFromMsgTx("btc", txA, timeNow())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +294,7 @@ func TestStoreQueries(t *testing.T) {
 	newState.blocks[0][0].Credits = []CreditRecord{
 		{
 			Index:  0,
-			Amount: btcutil.Amount(recA.MsgTx.TxOut[0].Value),
+			Amount: btcutil.Amount(recA.Tx.TxOut[0].Value),
 			Spent:  false,
 			Change: true,
 		},
@@ -312,7 +312,7 @@ func TestStoreQueries(t *testing.T) {
 	// Insert another unmined transaction which spends txA:0, splitting the
 	// amount into outputs of 40 and 60 BTC.
 	txB := spendOutput(&recA.Hash, 0, 40e8, 60e8)
-	recB, err := NewTxRecordFromMsgTx(txB, timeNow())
+	recB, err := NewTxRecordFromMsgTx("btc", txB, timeNow())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +323,7 @@ func TestStoreQueries(t *testing.T) {
 		Block:    BlockMeta{Block: Block{Height: -1}},
 		Debits: []DebitRecord{
 			{
-				Amount: btcutil.Amount(recA.MsgTx.TxOut[0].Value),
+				Amount: btcutil.Amount(recA.Tx.TxOut[0].Value),
 				Index:  0, // recB.MsgTx.TxIn index
 			},
 		},
@@ -342,7 +342,7 @@ func TestStoreQueries(t *testing.T) {
 	newState.blocks[0][1].Credits = []CreditRecord{
 		{
 			Index:  0,
-			Amount: btcutil.Amount(recB.MsgTx.TxOut[0].Value),
+			Amount: btcutil.Amount(recB.Tx.TxOut[0].Value),
 			Spent:  false,
 			Change: false,
 		},
@@ -412,7 +412,7 @@ func TestStoreQueries(t *testing.T) {
 		ns := tx.ReadWriteBucket(namespaceKey)
 
 		missingTx := spendOutput(&recB.Hash, 0, 40e8)
-		missingRec, err := NewTxRecordFromMsgTx(missingTx, timeNow())
+		missingRec, err := NewTxRecordFromMsgTx("btc", missingTx, timeNow())
 		if err != nil {
 			return err
 		}
@@ -565,7 +565,7 @@ func TestPreviousPkScripts(t *testing.T) {
 	}
 
 	newTxRecordFromMsgTx := func(tx *wire.MsgTx) *TxRecord {
-		rec, err := NewTxRecordFromMsgTx(tx, timeNow())
+		rec, err := NewTxRecordFromMsgTx("btc", tx, timeNow())
 		if err != nil {
 			t.Fatal(err)
 		}

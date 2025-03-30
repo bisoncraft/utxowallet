@@ -1,6 +1,7 @@
 package spv
 
 import (
+	"bytes"
 	"compress/bzip2"
 	"encoding/binary"
 	"fmt"
@@ -12,13 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv/cache/lru"
 	"github.com/bisoncraft/utxowallet/spv/filterdb"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
 	"github.com/bisoncraft/utxowallet/spv/query"
 	"github.com/btcsuite/btcd/blockchain"
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -46,7 +47,7 @@ var (
 //
 // NOTE: copied from btcsuite/btcd/database/ffldb/interface_test.go.
 func loadBlocks(t *testing.T, dataFile string, network wire.BitcoinNet) (
-	[]*btcutil.Block, error) {
+	[]*bisonwire.Block, error) {
 	// Open the file that contains the blocks for reading.
 	fi, err := os.Open(dataFile)
 	if err != nil {
@@ -62,8 +63,8 @@ func loadBlocks(t *testing.T, dataFile string, network wire.BitcoinNet) (
 	dr := bzip2.NewReader(fi)
 
 	// Set the first block as the genesis block.
-	blocks := make([]*btcutil.Block, 0, 256)
-	genesis := btcutil.NewBlock(chaincfg.MainNetParams.GenesisBlock)
+	blocks := make([]*bisonwire.Block, 0, 256)
+	genesis := bisonwire.BlockFromMsgBlock("btc", chaincfg.MainNetParams.GenesisBlock)
 	blocks = append(blocks, genesis)
 
 	// Load the remaining blocks.
@@ -101,9 +102,8 @@ func loadBlocks(t *testing.T, dataFile string, network wire.BitcoinNet) (
 			return nil, err
 		}
 
-		// Deserialize and store the block.
-		block, err := btcutil.NewBlockFromBytes(blockBytes)
-		if err != nil {
+		block := &bisonwire.Block{Chain: "btc"}
+		if err := block.BtcDecode(bytes.NewReader(blockBytes), 0, wire.LatestEncoding); err != nil {
 			t.Errorf("Failed to parse block %v: %v", height, err)
 			return nil, err
 		}
@@ -273,7 +273,7 @@ func TestBlockCache(t *testing.T) {
 		}
 		headers.WriteHeaders(header)
 
-		sz, _ := (&CacheableBlock{Block: b}).Size()
+		sz, _ := (&CacheableBlock{BlockWithHeight: &bisonwire.BlockWithHeight{Block: b}}).Size()
 		if i < len(blocks)/2 {
 			size += sz
 		}
@@ -314,11 +314,12 @@ func TestBlockCache(t *testing.T) {
 
 		// Serve the block that matches the requested block header.
 		for _, b := range blocks {
-			if *b.Hash() != inv.Hash {
+			blockHash := b.Header.BlockHash()
+			if blockHash != inv.Hash {
 				continue
 			}
 
-			header, _, err := headers.FetchHeader(b.Hash())
+			header, _, err := headers.FetchHeader(&blockHash)
 			require.NoError(t, err)
 
 			resp := &wire.MsgBlock{
@@ -353,9 +354,11 @@ func TestBlockCache(t *testing.T) {
 			t.Fatalf("error getting block: %v", err)
 		}
 
-		if *found.Hash() != hash {
+		foundHash := found.Block.Header.BlockHash()
+
+		if foundHash != hash {
 			t.Fatalf("requested block with hash %v, got %v",
-				hash, found.Hash())
+				hash, foundHash)
 		}
 
 		select {
@@ -377,9 +380,11 @@ func TestBlockCache(t *testing.T) {
 			t.Fatalf("error getting block: %v", err)
 		}
 
-		if *found.Hash() != hash {
+		foundHash := found.Block.Header.BlockHash()
+
+		if foundHash != hash {
 			t.Fatalf("requested block with hash %v, got %v",
-				hash, found.Hash())
+				hash, foundHash)
 		}
 
 		// Make sure we didn't query the peers for this block.
@@ -393,19 +398,19 @@ func TestBlockCache(t *testing.T) {
 	// Get the first half of the blocks. Since this is the first time we
 	// request them, we expect them all to be fetched from peers.
 	for _, b := range blocks[:len(blocks)/2] {
-		fetchAndAssertPeersQueried(*b.Hash())
+		fetchAndAssertPeersQueried(b.Header.BlockHash())
 	}
 
 	// Get the first half of the blocks again. This time we expect them all
 	// to be fetched from the cache.
 	for _, b := range blocks[:len(blocks)/2] {
-		fetchAndAssertInCache(*b.Hash())
+		fetchAndAssertInCache(b.Header.BlockHash())
 	}
 
 	// Get the second half of the blocks. These have not been fetched
 	// before, and we expect them to be fetched from peers.
 	for _, b := range blocks[len(blocks)/2:] {
-		fetchAndAssertPeersQueried(*b.Hash())
+		fetchAndAssertPeersQueried(b.Header.BlockHash())
 	}
 
 	// Since the cache only had capacity for the first half of the blocks,
@@ -413,5 +418,5 @@ func TestBlockCache(t *testing.T) {
 	// one, since we cannot know for sure how many because of the variable
 	// size.
 	b := blocks[0]
-	fetchAndAssertPeersQueried(*b.Hash())
+	fetchAndAssertPeersQueried(b.Header.BlockHash())
 }

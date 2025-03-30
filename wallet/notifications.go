@@ -52,7 +52,7 @@ func lookupInputAccount(dbtx walletdb.ReadTx, w *Wallet, details *wtxmgr.TxDetai
 
 	// TODO: Debits should record which account(s?) they
 	// debit from so this doesn't need to be looked up.
-	prevOP := &details.MsgTx.TxIn[deb.Index].PreviousOutPoint
+	prevOP := &details.Tx.TxIn[deb.Index].PreviousOutPoint
 	prev, err := w.TxStore.TxDetails(txmgrNs, &prevOP.Hash)
 	if err != nil {
 		log.Errorf("Cannot query previous transaction details for %v: %v", prevOP.Hash, err)
@@ -62,8 +62,8 @@ func lookupInputAccount(dbtx walletdb.ReadTx, w *Wallet, details *wtxmgr.TxDetai
 		log.Errorf("Missing previous transaction %v", prevOP.Hash)
 		return 0
 	}
-	prevOut := prev.MsgTx.TxOut[prevOP.Index]
-	_, addrs, _, err := txscript.ExtractPkScriptAddrs(prevOut.PkScript, w.chainParams)
+	prevOut := prev.Tx.TxOut[prevOP.Index]
+	_, addrs, _, err := txscript.ExtractPkScriptAddrs(prevOut.PkScript, w.btcParams)
 	var inputAcct uint32
 	if err == nil && len(addrs) > 0 {
 		_, inputAcct, err = w.Manager.AddrAccount(addrmgrNs, addrs[0])
@@ -80,8 +80,8 @@ func lookupOutputChain(dbtx walletdb.ReadTx, w *Wallet, details *wtxmgr.TxDetail
 
 	addrmgrNs := dbtx.ReadBucket(waddrmgrNamespaceKey)
 
-	output := details.MsgTx.TxOut[cred.Index]
-	_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.PkScript, w.chainParams)
+	output := details.Tx.TxOut[cred.Index]
+	_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.PkScript, w.btcParams)
 	var ma waddrmgr.ManagedAddress
 	if err == nil && len(addrs) > 0 {
 		ma, err = w.Manager.Address(addrmgrNs, addrs[0])
@@ -99,18 +99,18 @@ func makeTxSummary(dbtx walletdb.ReadTx, w *Wallet, details *wtxmgr.TxDetails) T
 	serializedTx := details.SerializedTx
 	if serializedTx == nil {
 		var buf bytes.Buffer
-		err := details.MsgTx.Serialize(&buf)
+		err := details.Tx.Serialize(&buf)
 		if err != nil {
 			log.Errorf("Transaction serialization: %v", err)
 		}
 		serializedTx = buf.Bytes()
 	}
 	var fee btcutil.Amount
-	if len(details.Debits) == len(details.MsgTx.TxIn) {
+	if len(details.Debits) == len(details.Tx.TxIn) {
 		for _, deb := range details.Debits {
 			fee += deb.Amount
 		}
-		for _, txOut := range details.MsgTx.TxOut {
+		for _, txOut := range details.Tx.TxOut {
 			fee -= btcutil.Amount(txOut.Value)
 		}
 	}
@@ -125,8 +125,8 @@ func makeTxSummary(dbtx walletdb.ReadTx, w *Wallet, details *wtxmgr.TxDetails) T
 			}
 		}
 	}
-	outputs := make([]TransactionSummaryOutput, 0, len(details.MsgTx.TxOut))
-	for i := range details.MsgTx.TxOut {
+	outputs := make([]TransactionSummaryOutput, 0, len(details.Tx.TxOut))
+	for i := range details.Tx.TxOut {
 		credIndex := len(outputs)
 		mine := len(details.Credits) > credIndex && details.Credits[credIndex].Index == uint32(i)
 		if !mine {
@@ -161,7 +161,7 @@ func totalBalances(dbtx walletdb.ReadTx, w *Wallet, m map[uint32]btcutil.Amount)
 		output := &unspent[i]
 		var outputAcct uint32
 		_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-			output.PkScript, w.chainParams)
+			output.PkScript, w.btcParams)
 		if err == nil && len(addrs) > 0 {
 			_, outputAcct, err = w.Manager.AddrAccount(addrmgrNs, addrs[0])
 		}

@@ -7,8 +7,8 @@ package wtxmgr
 import (
 	"fmt"
 
+	"github.com/bisoncraft/utxowallet/assets"
 	"github.com/bisoncraft/utxowallet/walletdb"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -25,14 +25,14 @@ var (
 
 func init() {
 	tx := spendOutput(&chainhash.Hash{}, 0, 10e8)
-	rec, err := NewTxRecordFromMsgTx(tx, timeNow())
+	rec, err := NewTxRecordFromMsgTx("btc", tx, timeNow())
 	if err != nil {
 		panic(err)
 	}
 	exampleTxRecordA = rec
 
 	tx = spendOutput(&exampleTxRecordA.Hash, 0, 5e8, 5e8)
-	rec, err = NewTxRecordFromMsgTx(tx, timeNow())
+	rec, err = NewTxRecordFromMsgTx("btc", tx, timeNow())
 	if err != nil {
 		panic(err)
 	}
@@ -187,7 +187,7 @@ func Example_basicUsage() {
 		fmt.Println(err)
 		return
 	}
-	s, err := Open(b, &chaincfg.TestNet3Params)
+	s, err := Open(b, assets.BTCParams["testnet"])
 	if err != nil {
 		fmt.Println(err)
 		return

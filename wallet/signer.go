@@ -50,7 +50,7 @@ func (w *Wallet) ScriptForOutput(output *wire.TxOut) (
 		// single push of the p2wkh witness program corresponding to
 		// the matching public key of this address.
 		p2wkhAddr, err := btcutil.NewAddressWitnessPubKeyHash(
-			pubKeyHash, w.chainParams,
+			pubKeyHash, w.btcParams,
 		)
 		if err != nil {
 			return nil, nil, nil, err

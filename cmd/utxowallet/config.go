@@ -52,6 +52,7 @@ type config struct {
 	LogDir        string                  `long:"logdir" description:"Directory to log output."`
 	Profile       string                  `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
 	DBTimeout     time.Duration           `long:"dbtimeout" description:"The timeout value to use when opening the wallet database."`
+	DevRPC        bool                    `long:"devrpc" description:"Turn on the dev RPC API on port 44825"`
 
 	// Wallet options
 	WalletPass string `long:"walletpass" default-mask:"-" description:"The public wallet password -- Only required if the wallet was created with one"`
@@ -362,6 +363,10 @@ func loadConfig() (*config, string, *netparams.ChainParams, error) {
 	// options.
 	if configFileError != nil {
 		log.Warnf("%v", configFileError)
+	}
+
+	if net == "simnet" && len(cfg.AddPeers) == 0 && len(cfg.ConnectPeers) == 0 {
+		cfg.AddPeers = append(cfg.AddPeers, "127.0.0.1:"+netParams.DefaultPort)
 	}
 
 	return &cfg, netDir, netParams, nil
