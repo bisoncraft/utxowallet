@@ -1,11 +1,9 @@
 package chain
 
 import (
-	"fmt"
 	"math"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcutil"
@@ -119,74 +117,4 @@ func solveBlock(header *wire.BlockHeader) bool {
 	}
 
 	return false
-}
-
-// genBlockChain generates a test chain with the given number of blocks.
-func genBlockChain(numBlocks uint32) ([]*chainhash.Hash, map[chainhash.Hash]*wire.MsgBlock) {
-	prevHash := chainParams.GenesisHash
-	prevHeader := &chainParams.GenesisBlock.Header
-
-	hashes := make([]*chainhash.Hash, numBlocks)
-	blocks := make(map[chainhash.Hash]*wire.MsgBlock, numBlocks)
-
-	// Each block contains three transactions, including the coinbase
-	// transaction. Each non-coinbase transaction spends outputs from
-	// the previous block. We also need to produce blocks that succeed
-	// validation through blockchain.CheckBlockSanity.
-	script := []byte{0x01, 0x01}
-	createTx := func(prevOut wire.OutPoint) *wire.MsgTx {
-		return &wire.MsgTx{
-			TxIn: []*wire.TxIn{{
-				PreviousOutPoint: prevOut,
-				SignatureScript:  script,
-			}},
-			TxOut: []*wire.TxOut{{PkScript: script}},
-		}
-	}
-	for i := uint32(0); i < numBlocks; i++ {
-		txs := []*wire.MsgTx{
-			createTx(wire.OutPoint{Index: wire.MaxPrevOutIndex}),
-			createTx(wire.OutPoint{Hash: *prevHash, Index: 0}),
-			createTx(wire.OutPoint{Hash: *prevHash, Index: 1}),
-		}
-		header := &wire.BlockHeader{
-			Version:    1,
-			PrevBlock:  *prevHash,
-			MerkleRoot: calcMerkleRoot(txs),
-			Timestamp:  prevHeader.Timestamp.Add(10 * time.Minute),
-			Bits:       chainParams.PowLimitBits,
-			Nonce:      0,
-		}
-		if !solveBlock(header) {
-			panic(fmt.Sprintf("could not solve block at idx %v", i))
-		}
-		block := &wire.MsgBlock{
-			Header:       *header,
-			Transactions: txs,
-		}
-
-		blockHash := block.BlockHash()
-		hashes[i] = &blockHash
-		blocks[blockHash] = block
-
-		prevHash = &blockHash
-		prevHeader = header
-	}
-
-	return hashes, blocks
-}
-
-// producesInvalidBlock produces a copy of the block that duplicates the last
-// transaction. When the block has an odd number of transactions, this results
-// in the invalid block maintaining the same hash as the valid block.
-func produceInvalidBlock(block *wire.MsgBlock) *wire.MsgBlock {
-	numTxs := len(block.Transactions)
-	lastTx := block.Transactions[numTxs-1]
-	blockCopy := &wire.MsgBlock{
-		Header:       block.Header,
-		Transactions: make([]*wire.MsgTx, numTxs),
-	}
-	copy(blockCopy.Transactions, block.Transactions)
-	blockCopy.AddTransaction(lastTx)
-	return blockCopy
 }

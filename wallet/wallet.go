@@ -910,7 +910,7 @@ expandHorizons:
 	// in the filter blocks response. This ensures that these transactions
 	// and their outputs are tracked when the final rescan is performed.
 	for _, txn := range filterResp.RelevantTxns {
-		txRecord, err := wtxmgr.NewTxRecordFromMsgTx(
+		txRecord, err := wtxmgr.NewTxRecordBisonTx(
 			w.chainParams.Chain, txn, filterResp.BlockMeta.Time,
 		)
 		if err != nil {

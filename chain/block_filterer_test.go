@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/chain"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -268,8 +269,8 @@ var Block100000 = wire.MsgBlock{
 func TestBlockFiltererOneInOneOut(t *testing.T) {
 	// Watch for spend from prev in in first and last tx, both of which are
 	// single input/single output.
-	firstTx := Block100000.Transactions[1]
-	lastTx := Block100000.Transactions[3]
+	firstTx := &bisonwire.Tx{Chain: "btc", MsgTx: *Block100000.Transactions[1]}
+	lastTx := &bisonwire.Tx{Chain: "btc", MsgTx: *Block100000.Transactions[3]}
 
 	// Add each of their single previous outpoints to the set of watched
 	// outpoints to filter for.
@@ -286,7 +287,7 @@ func TestBlockFiltererOneInOneOut(t *testing.T) {
 
 	// Filter block 100000, which should find matches for the watched
 	// outpoints.
-	match := blockFilterer.FilterBlock(&Block100000)
+	match := blockFilterer.FilterBlock(bisonwire.BlockFromMsgBlock("btc", &Block100000))
 	if !match {
 		t.Fatalf("failed to find matches when filtering for " +
 			"1-in-1-out txns")
@@ -312,7 +313,8 @@ func assertNumRelevantTxns(t *testing.T, bf *chain.BlockFilterer, size int) {
 
 // assertRelevantTxnsContains checks that the wantTx is found in the block
 // filterers set of relevant txns.
-func assertRelevantTxnsContains(t *testing.T, bf *chain.BlockFilterer, wantTx *wire.MsgTx) {
+func assertRelevantTxnsContains(t *testing.T, bf *chain.BlockFilterer, wantTx *bisonwire.Tx) {
+	t.Helper()
 	for _, relevantTx := range bf.RelevantTxns {
 		if reflect.DeepEqual(relevantTx, wantTx) {
 			return

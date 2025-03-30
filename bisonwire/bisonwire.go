@@ -38,13 +38,13 @@ func makeEmptyMessage(chain Chain, command string) (wire.Message, error) {
 		msg = &wire.MsgGetBlocks{}
 
 	case wire.CmdBlock:
-		msg = &wire.MsgBlock{}
+		msg = &Block{Chain: string(chain)}
 
 	case wire.CmdHeaders:
 		msg = &wire.MsgHeaders{}
 
 	case wire.CmdTx:
-		msg = &wire.MsgTx{}
+		msg = &Tx{Chain: string(chain)}
 
 	// Standard BTC wire types
 	case wire.CmdVersion:
@@ -129,7 +129,7 @@ func makeEmptyMessage(chain Chain, command string) (wire.Message, error) {
 		msg = &wire.MsgCFCheckpt{}
 
 	default:
-		return nil, wire.ErrUnknownMessage
+		return nil, fmt.Errorf("%w: %s", wire.ErrUnknownMessage, command)
 	}
 	return msg, nil
 }

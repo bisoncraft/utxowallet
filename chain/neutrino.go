@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
@@ -16,7 +17,6 @@ import (
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -155,7 +155,7 @@ func (s *NeutrinoClient) WaitForShutdown() {
 }
 
 // GetBlock replicates the RPC client's GetBlock command.
-func (s *NeutrinoClient) GetBlock(hash *chainhash.Hash) (*wire.MsgBlock, error) {
+func (s *NeutrinoClient) GetBlock(hash *chainhash.Hash) (*bisonwire.BlockWithHeight, error) {
 	// TODO(roasbeef): add a block cache?
 	//  * which evication strategy? depends on use case
 	//  Should the block cache be INSIDE neutrino instead of in btcwallet?
@@ -163,7 +163,7 @@ func (s *NeutrinoClient) GetBlock(hash *chainhash.Hash) (*wire.MsgBlock, error) 
 	if err != nil {
 		return nil, err
 	}
-	return block.MsgBlock(), nil
+	return block, nil
 }
 
 // GetBlockHeight gets the height of a block by its hash. It serves as a
@@ -283,7 +283,7 @@ func (s *NeutrinoClient) FilterBlocks(
 			return nil, err
 		}
 
-		if !blockFilterer.FilterBlock(rawBlock) {
+		if !blockFilterer.FilterBlock(rawBlock.Block) {
 			continue
 		}
 
@@ -464,7 +464,7 @@ func (s *NeutrinoClient) Rescan(startHash *chainhash.Hash, addrs []btcutil.Addre
 
 	s.clientMtx.Lock()
 	newRescan := s.newRescan(
-		spv.NotificationHandlers(rpcclient.NotificationHandlers{
+		spv.NotificationHandlers(spv.NoteHandlers{
 			OnBlockConnected:         s.onBlockConnected,
 			OnFilteredBlockConnected: s.onFilteredBlockConnected,
 			OnBlockDisconnected:      s.onBlockDisconnected,
@@ -520,7 +520,7 @@ func (s *NeutrinoClient) NotifyReceived(addrs []btcutil.Address) error {
 
 	// Rescan with just the specified addresses.
 	newRescan := s.newRescan(
-		spv.NotificationHandlers(rpcclient.NotificationHandlers{
+		spv.NotificationHandlers(spv.NoteHandlers{
 			OnBlockConnected:         s.onBlockConnected,
 			OnFilteredBlockConnected: s.onFilteredBlockConnected,
 			OnBlockDisconnected:      s.onBlockDisconnected,
@@ -556,7 +556,7 @@ func (s *NeutrinoClient) SetStartTime(startTime time.Time) {
 // onFilteredBlockConnected sends appropriate notifications to the notification
 // channel.
 func (s *NeutrinoClient) onFilteredBlockConnected(height int32,
-	header *wire.BlockHeader, relevantTxs []*btcutil.Tx) {
+	header *wire.BlockHeader, relevantTxs []*bisonwire.Tx) {
 	ntfn := FilteredBlockConnected{
 		Block: &wtxmgr.BlockMeta{
 			Block: wtxmgr.Block{
@@ -567,7 +567,7 @@ func (s *NeutrinoClient) onFilteredBlockConnected(height int32,
 		},
 	}
 	for _, tx := range relevantTxs {
-		rec, err := wtxmgr.NewTxRecordFromMsgTx(s.chainParams.Chain, tx.MsgTx(),
+		rec, err := wtxmgr.NewTxRecordFromMsgTx(s.chainParams.Chain, &tx.MsgTx,
 			header.Timestamp)
 		if err != nil {
 			log.Errorf("Cannot create transaction record for "+

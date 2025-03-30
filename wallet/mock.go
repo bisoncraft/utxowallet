@@ -3,6 +3,7 @@ package wallet
 import (
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/chain"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/btcsuite/btcd/btcutil"
@@ -31,7 +32,7 @@ func (m *mockChainClient) GetBestBlock() (*chainhash.Hash, int32, error) {
 	return nil, m.getBestBlockHeight, nil
 }
 
-func (m *mockChainClient) GetBlock(*chainhash.Hash) (*wire.MsgBlock, error) {
+func (m *mockChainClient) GetBlock(*chainhash.Hash) (*bisonwire.BlockWithHeight, error) {
 	return nil, nil
 }
 

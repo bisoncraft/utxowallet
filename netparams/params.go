@@ -24,8 +24,12 @@ type ChainParams struct {
 	TargetTimespan           time.Duration
 	TargetTimePerBlock       time.Duration
 	RetargetAdjustmentFactor int64
+	ReduceMinDifficulty      bool
+	MinDiffReductionTime     time.Duration
 	Checkpoints              []chaincfg.Checkpoint
 	PowLimit                 *big.Int
+	PowLimitBits             uint32
+	PoWNoRetargeting         bool
 	DNSSeeds                 []chaincfg.DNSSeed
 	DefaultPort              string
 
@@ -76,8 +80,12 @@ func (c *ChainParams) BTCDParams() *chaincfg.Params {
 		TargetTimespan:           c.TargetTimespan,
 		TargetTimePerBlock:       c.TargetTimePerBlock,
 		RetargetAdjustmentFactor: c.RetargetAdjustmentFactor,
+		ReduceMinDifficulty:      c.ReduceMinDifficulty,
+		MinDiffReductionTime:     c.MinDiffReductionTime,
 		Checkpoints:              c.Checkpoints,
 		PowLimit:                 c.PowLimit,
+		PowLimitBits:             c.PowLimitBits,
+		PoWNoRetargeting:         c.PoWNoRetargeting,
 		DNSSeeds:                 c.DNSSeeds,
 		DefaultPort:              c.DefaultPort,
 		Bech32HRPSegwit:          c.Bech32HRPSegwit,

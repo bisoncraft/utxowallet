@@ -103,9 +103,7 @@ func (w *Wallet) handleChainNotifications() {
 						return ErrWalletShuttingDown
 					}
 
-					log.Errorf("Unable to synchronize "+
-						"wallet to chain, trying "+
-						"again in %s: %v",
+					log.Errorf("Unable to synchronize wallet to chain, trying again in %s: %v",
 						w.syncRetryInterval, err)
 
 					continue
@@ -152,8 +150,7 @@ func (w *Wallet) handleChainNotifications() {
 
 				err = waitForSync(birthdayBlock)
 				if err != nil {
-					log.Infof("Stopped waiting for wallet "+
-						"sync due to error: %v", err)
+					log.Infof("Stopped waiting for wallet sync due to error: %v", err)
 
 					return
 				}

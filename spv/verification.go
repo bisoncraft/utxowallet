@@ -3,7 +3,7 @@ package spv
 import (
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcutil"
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/btcutil/gcs/builder"
 	"github.com/btcsuite/btcd/txscript"
@@ -12,21 +12,23 @@ import (
 // VerifyBasicBlockFilter asserts that a given block filter was constructed
 // correctly and according to the rules of BIP-0158 to contain both the output's
 // pk scripts as well as the pk scripts the inputs are spending.
-func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
+func VerifyBasicBlockFilter(filter *gcs.Filter, block *bisonwire.Block) (int,
 	error) {
+
+	blockHash := block.Header.BlockHash()
 
 	var (
 		opReturnMatches int
-		key             = builder.DeriveKey(block.Hash())
+		key             = builder.DeriveKey(&blockHash)
 	)
-	for idx, tx := range block.Transactions() {
+	for idx, tx := range block.Transactions {
 		// Skip coinbase transaction.
 		if idx == 0 {
 			continue
 		}
 
 		// Check outputs first.
-		for outIdx, txOut := range tx.MsgTx().TxOut {
+		for outIdx, txOut := range tx.TxOut {
 			switch {
 			// If the script itself is blank, then we'll skip this
 			// as it doesn't contain any useful information.
@@ -53,7 +55,7 @@ func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
 					return 0, fmt.Errorf("error "+
 						"validating block %v outpoint "+
 						"%v:%d script %x: %v",
-						block.Hash(), tx.Hash(), outIdx,
+						blockHash, tx.TxHash(), outIdx,
 						txOut.PkScript, err)
 				}
 
@@ -72,7 +74,7 @@ func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
 			if err != nil {
 				return 0, fmt.Errorf("error validating block "+
 					"%v outpoint %v:%d script %x: %v",
-					block.Hash(), tx.Hash(), outIdx,
+					block.Header.BlockHash(), tx.TxHash(), outIdx,
 					txOut.PkScript, err)
 			}
 
@@ -80,7 +82,7 @@ func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
 				return 0, fmt.Errorf("filter for block %v is "+
 					"invalid, outpoint %v:%d script %x "+
 					"wasn't matched by filter",
-					block.Hash(), tx.Hash(), outIdx,
+					block.Header.BlockHash(), tx.TxHash(), outIdx,
 					txOut.PkScript)
 			}
 		}
@@ -89,7 +91,7 @@ func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
 		// also included any pk scripts of the outputs being _spent_.
 		// We can do this for witness items since the witness always
 		// contains the full script as the last element on the stack.
-		for inIdx, in := range tx.MsgTx().TxIn {
+		for inIdx, in := range tx.TxIn {
 			// There are too many edge cases to cover for non-
 			// witness scripts. And in LN land we're interested in
 			// witness spends only anyway. Therefore let's skip any
@@ -115,7 +117,7 @@ func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
 					"input %d of tx %v in block %v "+
 					"because script type is not supported "+
 					"for validating against filter", inIdx,
-					tx.Hash(), block.Hash())
+					tx.TxHash(), block.Header.BlockHash())
 
 				continue
 			}
@@ -127,7 +129,7 @@ func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
 				log.Debug("Skipping filter validation for "+
 					"input %d of tx %v in block %v "+
 					"because computing the script failed: "+
-					"%v", inIdx, block.Hash(), err)
+					"%v", inIdx, block.Header.BlockHash(), err)
 
 				continue
 			}
@@ -136,7 +138,7 @@ func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
 			if err != nil {
 				return 0, fmt.Errorf("error validating block "+
 					"%v input %d of tx %v script %x: %v",
-					block.Hash(), inIdx, tx.Hash(),
+					block.Header.BlockHash(), inIdx, tx.TxHash(),
 					script.Script(), err)
 			}
 
@@ -146,8 +148,8 @@ func VerifyBasicBlockFilter(filter *gcs.Filter, block *btcutil.Block) (int,
 					"pk script %x which wasn't matched by "+
 					"filter. The input likely spends a "+
 					"taproot output which is not yet"+
-					"supported", block.Hash(), inIdx,
-					tx.Hash(), script.Script())
+					"supported", block.Header.BlockHash(), inIdx,
+					tx.TxHash(), script.Script())
 			}
 		}
 	}

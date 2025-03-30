@@ -1,6 +1,7 @@
 package bisonwire
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -20,7 +21,7 @@ func litcoinTxHash(tx *Tx) chainhash.Hash {
 	return tx.MsgTx.TxHash()
 }
 
-func deserializeLitcoinTx(r io.Reader, tx *Tx) error {
+func deserializeLitecoinTx(r io.Reader, tx *Tx) error {
 	msgTx := &tx.MsgTx
 	dec := newDecoder(r)
 
@@ -132,4 +133,126 @@ func deserializeLitcoinTx(r io.Reader, tx *Tx) error {
 
 	msgTx.LockTime, err = dec.readUint32()
 	return err
+}
+
+// Block
+
+const (
+	// mwebVer is the bit of the block header's version that indicates the
+	// presence of a MWEB.
+	mwebVer = 0x20000000 // 1 << 29
+)
+
+func parseMWEB(blk io.Reader) error {
+	dec := newDecoder(blk)
+	// src/mweb/mweb_models.h - struct Block
+	// "A convenience wrapper around a possibly-null extension block.""
+	// OptionalPtr around a mw::Block. Read the option byte:
+	hasMWEB, err := dec.readByte()
+	if err != nil {
+		return fmt.Errorf("failed to check MWEB option byte: %w", err)
+	}
+	if hasMWEB == 0 {
+		return nil
+	}
+
+	// src/libmw/include/mw/models/block/Block.h - class Block
+	// (1) Header and (2) TxBody
+
+	// src/libmw/include/mw/models/block/Header.h - class Header
+	// height
+	if _, err = dec.readVLQ(); err != nil {
+		return fmt.Errorf("failed to decode MWEB height: %w", err)
+	}
+
+	// 3x Hash + 2x BlindingFactor
+	if err = dec.discardBytes(32*3 + 32*2); err != nil {
+		return fmt.Errorf("failed to decode MWEB junk: %w", err)
+	}
+
+	// Number of TXOs: outputMMRSize
+	if _, err = dec.readVLQ(); err != nil {
+		return fmt.Errorf("failed to decode TXO count: %w", err)
+	}
+
+	// Number of kernels: kernelMMRSize
+	if _, err = dec.readVLQ(); err != nil {
+		return fmt.Errorf("failed to decode kernel count: %w", err)
+	}
+
+	// TxBody
+	_, err = dec.readMWTXBody()
+	if err != nil {
+		return fmt.Errorf("failed to decode MWEB tx: %w", err)
+	}
+	// if len(kern0) > 0 {
+	// 	mwebTxID := chainhash.Hash(blake3.Sum256(kern0))
+	// 	fmt.Println(mwebTxID.String())
+	// }
+
+	return nil
+}
+
+// DeserializeBlock decodes the bytes of a serialized Litecoin block. This
+// function exists because MWEB changes both the block and transaction
+// serializations. Blocks may have a MW "extension block" for "peg-out"
+// transactions, and this EB is after all the transactions in the regular LTC
+// block. After the canonical transactions in the regular block, there may be
+// zero or more "peg-in" transactions followed by one integration transaction
+// (also known as a HogEx transaction), all still in the regular LTC block. The
+// peg-in txns decode correctly, but the integration tx is a special transaction
+// with the witness tx flag with bit 3 set (8), which prevents correct
+// wire.MsgTx deserialization.
+// Refs:
+// https://github.com/litecoin-project/lips/blob/master/lip-0002.mediawiki#PegOut_Transactions
+// https://github.com/litecoin-project/lips/blob/master/lip-0003.mediawiki#Specification
+// https://github.com/litecoin-project/litecoin/commit/9d1f530a5fa6d16871fdcc3b506be42b593d3ce4
+// https://github.com/litecoin-project/litecoin/commit/8c82032f45e644f413ec5c91e121a31c993aa831
+// (src/libmw/include/mw/models/tx/Transaction.h for the `mweb_tx` field of the
+// `CTransaction` in the "primitives" commit).
+func deserializeLitecoinBlock(r io.Reader) (*Block, error) {
+	// Block header
+	hdr := &wire.BlockHeader{}
+	err := hdr.Deserialize(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize block header: %w", err)
+	}
+
+	// This block's transactions
+	txnCount, err := wire.ReadVarInt(r, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse transaction count: %w", err)
+	}
+
+	// We can only decode the canonical txns, not the mw peg-in txs in the EB.
+	var hasHogEx bool
+	txns := make([]*Tx, 0, int(txnCount))
+	for i := 0; i < cap(txns); i++ {
+		tx := &Tx{Chain: "ltc"}
+		if err := deserializeLitecoinTx(r, tx); err != nil {
+			return nil, fmt.Errorf("failed to deserialize transaction %d of %d in block %v: %w",
+				i+1, txnCount, hdr.BlockHash(), err)
+		}
+		txns = append(txns, tx) // txns = append(txns, msgTx)
+		hasHogEx = tx.IsHogEx   // hogex is the last txn
+	}
+
+	// The mwebVer mask indicates it may contain a MWEB after a HogEx.
+	// src/primitives/block.h: SERIALIZE_NO_MWEB
+	if hdr.Version&mwebVer != 0 && hasHogEx {
+		if err = parseMWEB(r); err != nil {
+			return nil, err
+		}
+	}
+
+	return &Block{
+		Header:       *hdr,
+		Transactions: txns,
+	}, nil
+}
+
+// deserializeLitecoinBlockBytes wraps DeserializeBlock using bytes.NewReader for
+// convenience.
+func deserializeLitecoinBlockBytes(blk []byte) (*Block, error) {
+	return deserializeLitecoinBlock(bytes.NewReader(blk))
 }

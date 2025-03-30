@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/gcs"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 )
 
 type MockChainClient struct {
-	getBlockResponse     map[chainhash.Hash]*btcutil.Block
+	getBlockResponse     map[chainhash.Hash]*bisonwire.BlockWithHeight
 	getBlockHashResponse map[int64]*chainhash.Hash
 	getBestBlockHash     *chainhash.Hash
 	getBestBlockHeight   int32
@@ -24,18 +24,18 @@ type MockChainClient struct {
 
 func NewMockChainClient() *MockChainClient {
 	return &MockChainClient{
-		getBlockResponse:     make(map[chainhash.Hash]*btcutil.Block),
+		getBlockResponse:     make(map[chainhash.Hash]*bisonwire.BlockWithHeight),
 		getBlockHashResponse: make(map[int64]*chainhash.Hash),
 		getCFilterResponse:   make(map[chainhash.Hash]*gcs.Filter),
 	}
 }
 
-func (c *MockChainClient) SetBlock(hash *chainhash.Hash, block *btcutil.Block) {
+func (c *MockChainClient) SetBlock(hash *chainhash.Hash, block *bisonwire.BlockWithHeight) {
 	c.getBlockResponse[*hash] = block
 }
 
 func (c *MockChainClient) GetBlockFromNetwork(blockHash chainhash.Hash,
-	options ...QueryOption) (*btcutil.Block, error) {
+	options ...QueryOption) (*bisonwire.BlockWithHeight, error) {
 
 	return c.getBlockResponse[blockHash], nil
 }
@@ -93,7 +93,7 @@ func TestFindSpends(t *testing.T) {
 	// Test that finding spends with an empty outpoints index returns no
 	// spends.
 	r := newBatchSpendReporter()
-	spends := r.notifySpends(&Block100000, height)
+	spends := r.notifySpends(bisonwire.BlockFromMsgBlock("btc", &Block100000), height)
 	if len(spends) != 0 {
 		t.Fatalf("unexpected number of spend reports -- "+
 			"want %d, got %d", 0, len(spends))
@@ -103,7 +103,7 @@ func TestFindSpends(t *testing.T) {
 	r.addNewRequests(reqs)
 
 	// Ensure that a spend report is now returned.
-	spends = r.notifySpends(&Block100000, height)
+	spends = r.notifySpends(bisonwire.BlockFromMsgBlock("btc", &Block100000), height)
 	if len(spends) != 1 {
 		t.Fatalf("unexpected number of spend reports -- "+
 			"want %d, got %d", 1, len(spends))
@@ -131,7 +131,7 @@ func TestFindInitialTransactions(t *testing.T) {
 
 	// First, try to find the outpoint within the block.
 	r := newBatchSpendReporter()
-	initialTxns := r.findInitialTransactions(&Block100000, reqs, height)
+	initialTxns := r.findInitialTransactions(bisonwire.BlockFromMsgBlock("btc", &Block100000), reqs, height)
 	if len(initialTxns) != 1 {
 		t.Fatalf("unexpected number of spend reports -- "+
 			"want %v, got %v", 1, len(initialTxns))
@@ -148,7 +148,7 @@ func TestFindInitialTransactions(t *testing.T) {
 
 	// Try to find the invalid outpoint in the same block.
 	r = newBatchSpendReporter()
-	initialTxns = r.findInitialTransactions(&Block100000, reqs, height)
+	initialTxns = r.findInitialTransactions(bisonwire.BlockFromMsgBlock("btc", &Block100000), reqs, height)
 	if len(initialTxns) != 1 {
 		t.Fatalf("unexpected number of spend reports -- "+
 			"want %v, got %v", 1, len(initialTxns))
@@ -167,7 +167,7 @@ func TestFindInitialTransactions(t *testing.T) {
 
 	// Try to find the outpoint with an invalid txid in the same block.
 	r = newBatchSpendReporter()
-	initialTxns = r.findInitialTransactions(&Block100000, reqs, height)
+	initialTxns = r.findInitialTransactions(bisonwire.BlockFromMsgBlock("btc", &Block100000), reqs, height)
 	if len(initialTxns) != 1 {
 		t.Fatalf("unexpected number of spend reports -- "+
 			"want %v, got %v", 1, len(initialTxns))
@@ -328,11 +328,11 @@ func TestUtxoScannerScanBasic(t *testing.T) {
 
 	block99999Hash := Block99999.BlockHash()
 	mockChainClient.SetBlockHash(99999, &block99999Hash)
-	mockChainClient.SetBlock(&block99999Hash, btcutil.NewBlock(&Block99999))
+	mockChainClient.SetBlock(&block99999Hash, &bisonwire.BlockWithHeight{Block: bisonwire.BlockFromMsgBlock("btc", &Block99999)})
 
 	block100000Hash := Block100000.BlockHash()
 	mockChainClient.SetBlockHash(100000, &block100000Hash)
-	mockChainClient.SetBlock(&block100000Hash, btcutil.NewBlock(&Block100000))
+	mockChainClient.SetBlock(&block100000Hash, &bisonwire.BlockWithHeight{Block: bisonwire.BlockFromMsgBlock("btc", &Block100000)})
 	mockChainClient.SetBestSnapshot(&block100000Hash, 100000)
 
 	scanner := NewUtxoScanner(&UtxoScannerConfig{
@@ -384,12 +384,12 @@ func TestUtxoScannerScanAddBlocks(t *testing.T) {
 
 	block99999Hash := Block99999.BlockHash()
 	mockChainClient.SetBlockHash(99999, &block99999Hash)
-	mockChainClient.SetBlock(&block99999Hash, btcutil.NewBlock(&Block99999))
+	mockChainClient.SetBlock(&block99999Hash, &bisonwire.BlockWithHeight{Block: bisonwire.BlockFromMsgBlock("btc", &Block99999)})
 	mockChainClient.SetBestSnapshot(&block99999Hash, 99999)
 
 	block100000Hash := Block100000.BlockHash()
 	mockChainClient.SetBlockHash(100000, &block100000Hash)
-	mockChainClient.SetBlock(&block100000Hash, btcutil.NewBlock(&Block100000))
+	mockChainClient.SetBlock(&block100000Hash, &bisonwire.BlockWithHeight{Block: bisonwire.BlockFromMsgBlock("btc", &Block100000)})
 
 	var snapshotLock sync.Mutex
 	waitForSnapshot := make(chan struct{})
@@ -465,7 +465,7 @@ func TestUtxoScannerCancelRequest(t *testing.T) {
 
 	block100000Hash := Block100000.BlockHash()
 	mockChainClient.SetBlockHash(100000, &block100000Hash)
-	mockChainClient.SetBlock(&block100000Hash, btcutil.NewBlock(&Block100000))
+	mockChainClient.SetBlock(&block100000Hash, &bisonwire.BlockWithHeight{Block: bisonwire.BlockFromMsgBlock("btc", &Block100000)})
 	mockChainClient.SetBestSnapshot(&block100000Hash, 100000)
 
 	fetchErr := errors.New("cannot fetch block")
@@ -476,7 +476,7 @@ func TestUtxoScannerCancelRequest(t *testing.T) {
 	block := make(chan struct{})
 	scanner := NewUtxoScanner(&UtxoScannerConfig{
 		GetBlock: func(chainhash.Hash,
-			...QueryOption) (*btcutil.Block, error) {
+			...QueryOption) (*bisonwire.BlockWithHeight, error) {
 
 			<-block
 			return nil, fetchErr

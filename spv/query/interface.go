@@ -11,13 +11,15 @@ const (
 	// allowed to be retried before it will fail.
 	defaultQueryTimeout = time.Second * 30
 
-	// defaultQueryEncoding specifies the default encoding (witness or not)
-	// for `getdata` and other similar messages.
-	defaultQueryEncoding = wire.WitnessEncoding
-
 	// defaultNumRetries is the default number of times that a query job
 	// will be retried.
 	defaultNumRetries = 2
+)
+
+var (
+	// defaultQueryEncoding specifies the default encoding (witness or not)
+	// for `getdata` and other similar messages.
+	defaultQueryEncoding = wire.LatestEncoding
 )
 
 // queries are a set of options that can be modified per-query, unlike global

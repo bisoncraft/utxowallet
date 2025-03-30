@@ -92,9 +92,12 @@ var LTCParams = map[string]*netparams.ChainParams{
 			0x59, 0x40, 0xfd, 0x1f, 0xe3, 0x65, 0xa7, 0x12,
 		}),
 		PowLimit:                 ltcMainPowLimit,
+		PowLimitBits:             504365055,
 		TargetTimespan:           (time.Hour * 24 * 3) + (time.Hour * 12), // 3.5 days
 		TargetTimePerBlock:       (time.Minute * 2) + (time.Second * 30),  // 2.5 minutes
 		RetargetAdjustmentFactor: 4,                                       // 25% less, 400% more
+		ReduceMinDifficulty:      false,
+		MinDiffReductionTime:     0,
 		Checkpoints: []chaincfg.Checkpoint{
 			{1500, newHashFromStr("841a2965955dd288cfa707a755d05a54e45f8bd476835ec9af4402a2b59a2967")},
 			{4032, newHashFromStr("9ce90e427198fc0ef05e5905ce3503725b80e26afd35a987965fd7e3d9cf0846")},
@@ -136,8 +139,8 @@ var LTCParams = map[string]*netparams.ChainParams{
 		DefaultPort: "19335",
 		DNSSeeds: []chaincfg.DNSSeed{
 			{"testnet-seed.litecointools.com", false},
-			{"seed-b.litecoin.loshan.co.uk", true},
-			{"dnsseed-testnet.thrasher.io", true},
+			{"seed-b.litecoin.loshan.co.uk", false /*true*/},
+			{"dnsseed-testnet.thrasher.io", false /*true*/},
 		},
 		GenesisBlock: &wire.MsgBlock{
 			Header: wire.BlockHeader{
@@ -157,12 +160,15 @@ var LTCParams = map[string]*netparams.ChainParams{
 			0xd9, 0x51, 0x28, 0x4b, 0x5a, 0x62, 0x66, 0x49,
 		}),
 		PowLimit:                 ltcMainPowLimit,
+		PowLimitBits:             504365055,
 		BIP0034Height:            76,
 		BIP0065Height:            76,
 		BIP0066Height:            76,
 		TargetTimespan:           (time.Hour * 24 * 3) + (time.Hour * 12), // 3.5 days
 		TargetTimePerBlock:       (time.Minute * 2) + (time.Second * 30),  // 2.5 minutes
 		RetargetAdjustmentFactor: 4,
+		ReduceMinDifficulty:      true,
+		MinDiffReductionTime:     time.Minute * 5, // TargetTimePerBlock * 2
 		Checkpoints: []chaincfg.Checkpoint{
 			{26115, newHashFromStr("817d5b509e91ab5e439652eee2f59271bbc7ba85021d720cdb6da6565b43c14f")},
 			{43928, newHashFromStr("7d86614c153f5ef6ad878483118ae523e248cd0dd0345330cb148e812493cbb4")},
@@ -188,7 +194,7 @@ var LTCParams = map[string]*netparams.ChainParams{
 		Chain:       "ltc",
 		Name:        "regtest",
 		Net:         0xdab5bffa,
-		DefaultPort: "18444",
+		DefaultPort: "19444",
 		DNSSeeds:    []chaincfg.DNSSeed{},
 
 		// Chain parameters
@@ -210,12 +216,16 @@ var LTCParams = map[string]*netparams.ChainParams{
 			0x3e, 0xb4, 0x93, 0x8f, 0xf3, 0x27, 0x08, 0x53,
 		}),
 		PowLimit:                 new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne),
+		PowLimitBits:             0x207fffff,
+		PoWNoRetargeting:         true,
 		BIP0034Height:            100000000,                               // Not active - Permit ver 1 blocks
 		BIP0065Height:            1351,                                    // Used by regression tests
 		BIP0066Height:            1251,                                    // Used by regression tests
 		TargetTimespan:           (time.Hour * 24 * 3) + (time.Hour * 12), // 3.5 days
 		TargetTimePerBlock:       (time.Minute * 2) + (time.Second * 30),  // 2.5 minutes
 		RetargetAdjustmentFactor: 4,                                       // 25% less, 400% more
+		ReduceMinDifficulty:      true,
+		MinDiffReductionTime:     time.Minute * 20, // TargetTimePerBlock * 2
 
 		// Checkpoints ordered from oldest to newest.
 		Checkpoints:      nil,

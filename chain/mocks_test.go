@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"errors"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/headerfs"
@@ -83,7 +84,7 @@ func (m *mockChainService) GetBlockHeader(
 }
 
 func (m *mockChainService) GetBlock(chainhash.Hash,
-	...spv.QueryOption) (*btcutil.Block, error) {
+	...spv.QueryOption) (*bisonwire.BlockWithHeight, error) {
 
 	return nil, errNotImplemented
 }

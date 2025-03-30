@@ -176,6 +176,26 @@ func NewTxRecordFromMsgTx(chain string, msgTx *wire.MsgTx, received time.Time) (
 	return rec, nil
 }
 
+func NewTxRecordBisonTx(chain string, tx *bisonwire.Tx, received time.Time) (*TxRecord, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, tx.SerializeSize()))
+	err := tx.BtcEncode(buf, 0, wire.LatestEncoding)
+	if err != nil {
+		str := "failed to serialize transaction"
+		return nil, storeError(ErrInput, str, err)
+	}
+	rec := &TxRecord{
+		Tx: bisonwire.Tx{
+			MsgTx: tx.MsgTx,
+			Chain: chain,
+		},
+		Received:     received,
+		SerializedTx: buf.Bytes(),
+		Hash:         tx.TxHash(),
+	}
+
+	return rec, nil
+}
+
 // Credit is the type representing a transaction output which was spent or
 // is still spendable by wallet.  A UTXO is an unspent Credit, but not all
 // Credits are UTXOs.

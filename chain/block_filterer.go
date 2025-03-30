@@ -1,6 +1,7 @@
 package chain
 
 import (
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -59,7 +60,7 @@ type BlockFilterer struct {
 	// RelevantTxns records the transactions found in a particular block
 	// that contained matches from an address in either ExReverseFilter or
 	// InReverseFilter.
-	RelevantTxns []*wire.MsgTx
+	RelevantTxns []*bisonwire.Tx
 }
 
 // NewBlockFilterer constructs the reverse indexes for the current set of
@@ -105,7 +106,7 @@ func NewBlockFilterer(params *chaincfg.Params,
 // filters. This method return true iff the block contains a non-zero number of
 // addresses of interest, or a transaction in the block spends from outpoints
 // controlled by the wallet.
-func (bf *BlockFilterer) FilterBlock(block *wire.MsgBlock) bool {
+func (bf *BlockFilterer) FilterBlock(block *bisonwire.Block) bool {
 	var hasRelevantTxns bool
 	for _, tx := range block.Transactions {
 		if bf.FilterTx(tx) {
@@ -122,7 +123,7 @@ func (bf *BlockFilterer) FilterBlock(block *wire.MsgBlock) bool {
 // indexes. This method returns true iff the txn contains a non-zero number of
 // addresses of interest, or the transaction spends from an outpoint that
 // belongs to the wallet.
-func (bf *BlockFilterer) FilterTx(tx *wire.MsgTx) bool {
+func (bf *BlockFilterer) FilterTx(tx *bisonwire.Tx) bool {
 	var isRelevant bool
 
 	// First, check the inputs to this transaction to see if they spend any
@@ -164,7 +165,7 @@ func (bf *BlockFilterer) FilterTx(tx *wire.MsgTx) bool {
 		// found outpoints, so that the caller can update its global
 		// set of watched outpoints.
 		outPoint := wire.OutPoint{
-			Hash:  *btcutil.NewTx(tx).Hash(),
+			Hash:  tx.TxHash(),
 			Index: uint32(i),
 		}
 

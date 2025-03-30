@@ -96,9 +96,12 @@ var BTCParams = map[string]*netparams.ChainParams{
 			0x68, 0xd6, 0x19, 0x00, 0x00, 0x00, 0x00, 0x00,
 		}),
 		PowLimit:                 new(big.Int).Sub(new(big.Int).Lsh(bigOne, 224), bigOne),
+		PowLimitBits:             0x1d00ffff,
 		TargetTimespan:           time.Hour * 24 * 14, // 14 days
 		TargetTimePerBlock:       time.Minute * 10,    // 10 minutes
 		RetargetAdjustmentFactor: 4,                   // 25% less, 400% more
+		ReduceMinDifficulty:      false,
+		MinDiffReductionTime:     0,
 
 		// Checkpoints ordered from oldest to newest.
 		Checkpoints: []chaincfg.Checkpoint{
@@ -223,9 +226,12 @@ var BTCParams = map[string]*netparams.ChainParams{
 			0x01, 0xea, 0x33, 0x09, 0x00, 0x00, 0x00, 0x00,
 		}),
 		PowLimit:                 new(big.Int).Sub(new(big.Int).Lsh(bigOne, 224), bigOne),
+		PowLimitBits:             0x1d00ffff,
 		TargetTimespan:           time.Hour * 24 * 14, // 14 days
 		TargetTimePerBlock:       time.Minute * 10,    // 10 minutes
 		RetargetAdjustmentFactor: 4,                   // 25% less, 400% more
+		ReduceMinDifficulty:      true,
+		MinDiffReductionTime:     time.Minute * 20, // TargetTimePerBlock * 2
 
 		// Checkpoints ordered from oldest to newest.
 		Checkpoints: []chaincfg.Checkpoint{
@@ -272,7 +278,7 @@ var BTCParams = map[string]*netparams.ChainParams{
 		Chain:       "btc",
 		Name:        "regtest",
 		Net:         wire.TestNet,
-		DefaultPort: "18444",
+		DefaultPort: "20575", // 18444 // Changed to match dcrdex testing harness
 		DNSSeeds:    []chaincfg.DNSSeed{},
 		GenesisBlock: &wire.MsgBlock{
 			Header: wire.BlockHeader{
@@ -332,9 +338,13 @@ var BTCParams = map[string]*netparams.ChainParams{
 			0xc7, 0xb2, 0xb7, 0x3c, 0xf1, 0x88, 0x91, 0x0f,
 		}),
 		PowLimit:                 new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne),
+		PowLimitBits:             0x207fffff,
+		PoWNoRetargeting:         true,
 		TargetTimespan:           time.Hour * 24 * 14, // 14 days
 		TargetTimePerBlock:       time.Minute * 10,    // 10 minutes
 		RetargetAdjustmentFactor: 4,                   // 25% less, 400% more
+		ReduceMinDifficulty:      true,
+		MinDiffReductionTime:     time.Minute * 20, // TargetTimePerBlock * 2
 		Checkpoints:              nil,
 		Bech32HRPSegwit:          "bcrt",                          // always bcrt for reg test net
 		PubKeyHashAddrID:         0x6f,                            // starts with m or n

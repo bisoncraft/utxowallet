@@ -10,7 +10,7 @@ import (
 
 type Tx struct {
 	wire.MsgTx
-	Chain   string
+	Chain   string // TODO: Use bisonwire.Chain type
 	IsHogEx bool
 	Kern0   []byte
 }
@@ -20,7 +20,7 @@ func (tx *Tx) Deserialize(r io.Reader) error {
 	case "btc":
 		return tx.MsgTx.Deserialize(r)
 	case "ltc":
-		return deserializeLitcoinTx(r, tx)
+		return deserializeLitecoinTx(r, tx)
 	default:
 		return fmt.Errorf("unknown chain %q specified for bisonwire tx deserialization", tx.Chain)
 	}

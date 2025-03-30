@@ -1,11 +1,11 @@
 package spv
 
-import "github.com/btcsuite/btcd/btcutil"
+import "github.com/bisoncraft/utxowallet/bisonwire"
 
 // CacheableBlock is a wrapper around the btcutil.Block type which provides a
 // Size method used by the cache to target certain memory usage.
 type CacheableBlock struct {
-	*btcutil.Block
+	*bisonwire.BlockWithHeight
 }
 
 // Size returns size of this block in bytes.

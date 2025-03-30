@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/gcs"
@@ -116,9 +117,8 @@ func TestVerifyBlockFilter(t *testing.T) {
 	// contains all the entries we require according to BIP-158.
 	utxoSet := []*wire.MsgTx{prevTx}
 	validFilter := filterFromBlock(t, utxoSet, spendBlock, true)
-	b := btcutil.NewBlock(spendBlock)
 
-	opReturnValid, err := VerifyBasicBlockFilter(validFilter, b)
+	opReturnValid, err := VerifyBasicBlockFilter(validFilter, bisonwire.BlockFromMsgBlock("btc", spendBlock))
 	require.NoError(t, err)
 	require.Equal(t, 1, opReturnValid)
 }

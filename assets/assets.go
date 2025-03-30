@@ -2,13 +2,15 @@ package assets
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/bisoncraft/utxowallet/netparams"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
-func NetParams(chain, net string) (p *netparams.ChainParams, _ error) {
+func NetParams(chain, net string) (p *netparams.ChainParams, err error) {
 	switch chain {
 	case "btc":
 		p = BTCParams[net]
@@ -18,7 +20,9 @@ func NetParams(chain, net string) (p *netparams.ChainParams, _ error) {
 	if p == nil {
 		return nil, fmt.Errorf("no net params for chain %s, network %s", chain, net)
 	}
-	p.BTCDParams() // populate the internal btcParams field
+	registerParams := *p.BTCDParams() // populate the internal btcParams field
+	registerParams.Net = math.MaxUint32
+	err = chaincfg.Register(&registerParams)
 	return
 }
 

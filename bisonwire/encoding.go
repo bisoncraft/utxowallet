@@ -188,7 +188,7 @@ func ReadMessageWithEncodingN(
 // message.  This function is the same as ReadMessage except it also returns the
 // number of bytes read.
 func ReadMessageN(r io.Reader, pver uint32, chain Chain, btcnet wire.BitcoinNet) (int, wire.Message, []byte, error) {
-	return ReadMessageWithEncodingN(r, pver, chain, btcnet, wire.BaseEncoding)
+	return ReadMessageWithEncodingN(r, pver, chain, btcnet, wire.LatestEncoding)
 }
 
 // ReadMessage reads, validates, and parses the next bitcoin Message from r for

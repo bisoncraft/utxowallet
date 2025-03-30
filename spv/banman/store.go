@@ -69,6 +69,9 @@ type Store interface {
 
 	// UnbanIPNet removes the ban imposed on the specified peer.
 	UnbanIPNet(ipNet *net.IPNet) error
+
+	// UnbanAll removes all imposed bans.
+	UnbanAll() error
 }
 
 // NewStore returns a Store backed by a database.
@@ -171,6 +174,32 @@ func (s *banStore) UnbanIPNet(ipNet *net.IPNet) error {
 	return err
 }
 
+// UnbanAll removes all imposed bans.
+func (s *banStore) UnbanAll() error {
+	err := walletdb.Update(s.db, func(tx walletdb.ReadWriteTx) error {
+		banStore := tx.ReadWriteBucket(banStoreBucket)
+		if banStore == nil {
+			return ErrCorruptedStore
+		}
+
+		banIndex := banStore.NestedReadWriteBucket(banBucket)
+		if banIndex == nil {
+			return ErrCorruptedStore
+		}
+
+		reasonIndex := banStore.NestedReadWriteBucket(reasonBucket)
+		if reasonIndex == nil {
+			return ErrCorruptedStore
+		}
+
+		return banIndex.ForEach(func(k, _ []byte) error {
+			return removeBannedIPNet(banIndex, reasonIndex, k)
+		})
+	})
+
+	return err
+}
+
 // addBannedIPNet adds an entry to the ban store for the given IP network.
 func addBannedIPNet(banIndex, reasonIndex walletdb.ReadWriteBucket,
 	ipNetKey []byte, reason Reason, duration time.Duration) error {
@@ -246,8 +275,7 @@ func fetchStatus(banIndex, reasonIndex walletdb.ReadWriteBucket,
 
 // removeBannedIPNet removes all references to a banned IP network within the
 // ban store.
-func removeBannedIPNet(banIndex, reasonIndex walletdb.ReadWriteBucket,
-	ipNetKey []byte) error {
+func removeBannedIPNet(banIndex, reasonIndex walletdb.ReadWriteBucket, ipNetKey []byte) error {
 
 	if err := banIndex.Delete(ipNetKey); err != nil {
 		return err

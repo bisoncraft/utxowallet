@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/spv/banman"
 	"github.com/bisoncraft/utxowallet/spv/cache"
 	"github.com/bisoncraft/utxowallet/spv/filterdb"
@@ -58,7 +59,7 @@ var (
 
 	// QueryEncoding specifies the default encoding (witness or not) for
 	// `getdata` and other similar messages.
-	QueryEncoding = wire.WitnessEncoding
+	QueryEncoding = wire.LatestEncoding
 
 	// ErrFilterFetchFailed is returned in case fetching a compact filter
 	// fails.
@@ -797,7 +798,7 @@ func (s *ChainService) GetCFilter(blockHash chainhash.Hash,
 // time, until one answers. If the block is found in the cache, it will be
 // returned immediately.
 func (s *ChainService) GetBlock(blockHash chainhash.Hash,
-	options ...QueryOption) (*btcutil.Block, error) {
+	options ...QueryOption) (*bisonwire.BlockWithHeight, error) {
 
 	// Fetch the corresponding block header from the database. If this
 	// isn't found, then we don't have the header for this block so we
@@ -824,7 +825,7 @@ func (s *ChainService) GetBlock(blockHash chainhash.Hash,
 	// If the block is already in the cache, we can return it immediately.
 	blockValue, err := s.BlockCache.Get(*inv)
 	if err == nil && blockValue != nil {
-		return blockValue.Block, err
+		return blockValue.BlockWithHeight, err
 	}
 	if err != nil && err != cache.ErrElementNotFound {
 		return nil, err
@@ -834,7 +835,7 @@ func (s *ChainService) GetBlock(blockHash chainhash.Hash,
 	getData := wire.NewMsgGetData()
 	_ = getData.AddInvVect(inv)
 
-	var foundBlock *btcutil.Block
+	var foundBlock *bisonwire.BlockWithHeight
 
 	// handleResp will be called for each message received from a peer. It
 	// will be used to signal to the work manager whether progress has been
@@ -847,26 +848,24 @@ func (s *ChainService) GetBlock(blockHash chainhash.Hash,
 		}
 
 		// We're only interested in "block" responses.
-		response, ok := resp.(*wire.MsgBlock)
+		response, ok := resp.(*bisonwire.Block)
 		if !ok {
 			return noProgress
 		}
 
 		// If this isn't the block we asked for, ignore it.
-		if response.BlockHash() != blockHash {
+		if response.Header.BlockHash() != blockHash {
 			return noProgress
 		}
-		block := btcutil.NewBlock(response)
-
-		// Only set height if btcutil hasn't automagically put one in.
-		if block.Height() == btcutil.BlockHeightUnknown {
-			block.SetHeight(int32(height))
+		block := &bisonwire.BlockWithHeight{
+			Block:  response,
+			Height: height,
 		}
 
 		// If this claims our block but doesn't pass the sanity check,
 		// the peer is trying to bamboozle us.
 		if err := checkBlockSanity(
-			block,
+			block.Block,
 			// We don't need to check PoW because by the time we get
 			// here, it's been checked during header synchronization
 			s.chainParams,
@@ -886,7 +885,7 @@ func (s *ChainService) GetBlock(blockHash chainhash.Hash,
 		}
 
 		if err := blockchain.ValidateWitnessCommitment(
-			block,
+			btcutil.NewBlock(block.Block.MsgBlock()),
 		); err != nil {
 			log.Warnf("Invalid block for %s received from %s: %v "+
 				"-- disconnecting peer", blockHash, peer, err)
@@ -940,7 +939,7 @@ func (s *ChainService) GetBlock(blockHash chainhash.Hash,
 	}
 
 	// Add block to the cache before returning it.
-	_, err = s.BlockCache.Put(*inv, &CacheableBlock{Block: foundBlock})
+	_, err = s.BlockCache.Put(*inv, &CacheableBlock{BlockWithHeight: foundBlock})
 	if err != nil {
 		log.Warnf("couldn't write block to cache: %v", err)
 	}

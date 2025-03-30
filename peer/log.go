@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -176,9 +177,14 @@ func messageSummary(msg wire.Message) string {
 			msg.TxHash(), len(msg.TxIn), len(msg.TxOut),
 			formatLockTime(msg.LockTime))
 
-	case *wire.MsgBlock:
+	case *bisonwire.Tx:
+		return fmt.Sprintf("hash %s, %d inputs, %d outputs, lock %s",
+			msg.TxHash(), len(msg.TxIn), len(msg.TxOut),
+			formatLockTime(msg.LockTime))
+
+	case *bisonwire.Block:
 		header := &msg.Header
-		return fmt.Sprintf("hash %s, ver %d, %d tx, %s", msg.BlockHash(),
+		return fmt.Sprintf("hash %s, ver %d, %d tx, %s", msg.Header.BlockHash(),
 			header.Version, len(msg.Transactions), header.Timestamp)
 
 	case *wire.MsgInv:
