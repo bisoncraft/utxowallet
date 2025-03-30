@@ -61,7 +61,7 @@ func (w *Wallet) UnspentOutputs(policy OutputSelectionPolicy) ([]*TransactionOut
 
 			// Ignore outputs that are not controlled by the account.
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.PkScript,
-				w.chainParams)
+				w.btcParams)
 			if err != nil || len(addrs) == 0 {
 				// Cannot determine which account this belongs
 				// to without a valid address.  TODO: Fix this
@@ -129,7 +129,7 @@ func (w *Wallet) FetchInputInfo(prevOut *wire.OutPoint) (*wire.MsgTx,
 // passed output script. This function is used to look up the proper key which
 // should be used to sign a specified input.
 func (w *Wallet) fetchOutputAddr(script []byte) (waddrmgr.ManagedAddress, error) {
-	_, addrs, _, err := txscript.ExtractPkScriptAddrs(script, w.chainParams)
+	_, addrs, _, err := txscript.ExtractPkScriptAddrs(script, w.btcParams)
 	if err != nil {
 		return nil, err
 	}
@@ -167,14 +167,14 @@ func (w *Wallet) FetchOutpointInfo(prevOut *wire.OutPoint) (*wire.MsgTx,
 	// we actually have control of this output. We do this because the
 	// check above only guarantees that the transaction is somehow relevant
 	// to us, like in the event of us being the sender of the transaction.
-	numOutputs := uint32(len(txDetail.TxRecord.MsgTx.TxOut))
+	numOutputs := uint32(len(txDetail.TxRecord.Tx.TxOut))
 	if prevOut.Index >= numOutputs {
 		return nil, nil, 0, fmt.Errorf("invalid output index %v for "+
 			"transaction with %v outputs", prevOut.Index,
 			numOutputs)
 	}
 
-	pkScript := txDetail.TxRecord.MsgTx.TxOut[prevOut.Index].PkScript
+	pkScript := txDetail.TxRecord.Tx.TxOut[prevOut.Index].PkScript
 
 	// Determine the number of confirmations the output currently has.
 	_, currentHeight, err := w.chainClient.GetBestBlock()
@@ -188,8 +188,8 @@ func (w *Wallet) FetchOutpointInfo(prevOut *wire.OutPoint) (*wire.MsgTx,
 		confs = int64(currentHeight - txDetail.Block.Height)
 	}
 
-	return &txDetail.TxRecord.MsgTx, &wire.TxOut{
-		Value:    txDetail.TxRecord.MsgTx.TxOut[prevOut.Index].Value,
+	return &txDetail.TxRecord.Tx.MsgTx, &wire.TxOut{
+		Value:    txDetail.TxRecord.Tx.TxOut[prevOut.Index].Value,
 		PkScript: pkScript,
 	}, confs, nil
 }

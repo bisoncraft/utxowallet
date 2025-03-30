@@ -567,7 +567,7 @@ func (s *NeutrinoClient) onFilteredBlockConnected(height int32,
 		},
 	}
 	for _, tx := range relevantTxs {
-		rec, err := wtxmgr.NewTxRecordFromMsgTx(tx.MsgTx(),
+		rec, err := wtxmgr.NewTxRecordFromMsgTx(s.chainParams.Chain, tx.MsgTx(),
 			header.Timestamp)
 		if err != nil {
 			log.Errorf("Cannot create transaction record for "+

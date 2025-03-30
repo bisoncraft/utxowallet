@@ -8,6 +8,7 @@ package wtxmgr
 import (
 	"fmt"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -46,6 +47,7 @@ type TxDetails struct {
 // txHash and the passed tx record key and value.
 func (s *Store) minedTxDetails(ns walletdb.ReadBucket, txHash *chainhash.Hash, recKey, recVal []byte) (*TxDetails, error) {
 	var details TxDetails
+	details.Tx.Chain = s.chainParams.Chain
 
 	// Parse transaction record k/v, lookup the full block record for the
 	// block time, and read all matching credits, debits.
@@ -64,7 +66,7 @@ func (s *Store) minedTxDetails(ns walletdb.ReadBucket, txHash *chainhash.Hash, r
 
 	credIter := makeReadCreditIterator(ns, recKey)
 	for credIter.next() {
-		if int(credIter.elem.Index) >= len(details.MsgTx.TxOut) {
+		if int(credIter.elem.Index) >= len(details.Tx.TxOut) {
 			str := "saved credit index exceeds number of outputs"
 			return nil, storeError(ErrData, str, nil)
 		}
@@ -84,7 +86,7 @@ func (s *Store) minedTxDetails(ns walletdb.ReadBucket, txHash *chainhash.Hash, r
 
 	debIter := makeReadDebitIterator(ns, recKey)
 	for debIter.next() {
-		if int(debIter.elem.Index) >= len(details.MsgTx.TxIn) {
+		if int(debIter.elem.Index) >= len(details.Tx.TxIn) {
 			str := "saved debit index exceeds number of inputs"
 			return nil, storeError(ErrData, str, nil)
 		}
@@ -108,7 +110,8 @@ func (s *Store) minedTxDetails(ns walletdb.ReadBucket, txHash *chainhash.Hash, r
 // hash txHash and the passed unmined record value.
 func (s *Store) unminedTxDetails(ns walletdb.ReadBucket, txHash *chainhash.Hash, v []byte) (*TxDetails, error) {
 	details := TxDetails{
-		Block: BlockMeta{Block: Block{Height: -1}},
+		TxRecord: TxRecord{Tx: bisonwire.Tx{Chain: s.chainParams.Chain}},
+		Block:    BlockMeta{Block: Block{Height: -1}},
 	}
 	err := readRawTxRecord(txHash, v, &details.TxRecord)
 	if err != nil {
@@ -117,7 +120,7 @@ func (s *Store) unminedTxDetails(ns walletdb.ReadBucket, txHash *chainhash.Hash,
 
 	it := makeReadUnminedCreditIterator(ns, txHash)
 	for it.next() {
-		if int(it.elem.Index) >= len(details.MsgTx.TxOut) {
+		if int(it.elem.Index) >= len(details.Tx.TxOut) {
 			str := "saved credit index exceeds number of outputs"
 			return nil, storeError(ErrData, str, nil)
 		}
@@ -136,7 +139,7 @@ func (s *Store) unminedTxDetails(ns walletdb.ReadBucket, txHash *chainhash.Hash,
 	// transaction: mined unspent outputs (which remain marked unspent even
 	// when spent by an unmined transaction), and credits from other unmined
 	// transactions.  Both situations must be considered.
-	for i, output := range details.MsgTx.TxIn {
+	for i, output := range details.Tx.TxIn {
 		opKey := canonicalOutPoint(&output.PreviousOutPoint.Hash,
 			output.PreviousOutPoint.Index)
 		credKey := existsRawUnspent(ns, opKey)
@@ -395,7 +398,7 @@ func (s *Store) PreviousPkScripts(ns walletdb.ReadBucket, rec *TxRecord, block *
 	var pkScripts [][]byte
 
 	if block == nil {
-		for _, input := range rec.MsgTx.TxIn {
+		for _, input := range rec.Tx.TxIn {
 			prevOut := &input.PreviousOutPoint
 
 			// Input may spend a previous unmined output, a
@@ -413,7 +416,7 @@ func (s *Store) PreviousPkScripts(ns walletdb.ReadBucket, rec *TxRecord, block *
 				}
 
 				pkScript, err := fetchRawTxRecordPkScript(
-					prevOut.Hash[:], v, prevOut.Index)
+					s.chainParams.Chain, prevOut.Hash[:], v, prevOut.Index)
 				if err != nil {
 					return nil, err
 				}
@@ -425,8 +428,9 @@ func (s *Store) PreviousPkScripts(ns walletdb.ReadBucket, rec *TxRecord, block *
 			if credKey != nil {
 				k := extractRawCreditTxRecordKey(credKey)
 				v = existsRawTxRecord(ns, k)
-				pkScript, err := fetchRawTxRecordPkScript(k, v,
-					prevOut.Index)
+				pkScript, err := fetchRawTxRecordPkScript(
+					s.chainParams.Chain, k, v, prevOut.Index,
+				)
 				if err != nil {
 					return nil, err
 				}
@@ -444,7 +448,7 @@ func (s *Store) PreviousPkScripts(ns walletdb.ReadBucket, rec *TxRecord, block *
 		index := extractRawCreditIndex(credKey)
 		k := extractRawCreditTxRecordKey(credKey)
 		v := existsRawTxRecord(ns, k)
-		pkScript, err := fetchRawTxRecordPkScript(k, v, index)
+		pkScript, err := fetchRawTxRecordPkScript(s.chainParams.Chain, k, v, index)
 		if err != nil {
 			return nil, err
 		}

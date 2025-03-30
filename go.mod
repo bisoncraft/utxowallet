@@ -2,8 +2,6 @@ module github.com/bisoncraft/utxowallet
 
 go 1.23.4
 
-toolchain go1.23.6
-
 require (
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
@@ -13,7 +11,6 @@ require (
 	github.com/btcsuite/btclog v1.0.0
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
 	github.com/davecgh/go-spew v1.1.1
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/decred/dcrd/lru v1.0.0
 	github.com/golangci/golangci-lint v1.64.5
 	github.com/jessevdk/go-flags v1.6.1
@@ -28,6 +25,7 @@ require (
 	golang.org/x/crypto v0.35.0
 	golang.org/x/sync v0.11.0
 	golang.org/x/term v0.29.0
+	lukechampine.com/blake3 v1.4.0
 )
 
 require (
@@ -72,6 +70,7 @@ require (
 	github.com/curioswitch/go-reassign v0.3.0 // indirect
 	github.com/daixiang0/gci v0.13.5 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/denis-tingaikin/go-header v0.5.0 // indirect
 	github.com/dgraph-io/ristretto v0.0.2 // indirect
 	github.com/ettle/strcase v0.2.0 // indirect
@@ -123,6 +122,7 @@ require (
 	github.com/kkHAIKE/contextcheck v1.1.5 // indirect
 	github.com/kkdai/bstream v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/kulti/thelper v0.6.3 // indirect
 	github.com/kunwardeep/paralleltest v1.0.10 // indirect
 	github.com/lasiar/canonicalheader v1.1.2 // indirect

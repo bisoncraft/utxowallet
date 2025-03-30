@@ -18,6 +18,7 @@ func NetParams(chain, net string) (p *netparams.ChainParams, _ error) {
 	if p == nil {
 		return nil, fmt.Errorf("no net params for chain %s, network %s", chain, net)
 	}
+	p.BTCDParams() // populate the internal btcParams field
 	return
 }
 

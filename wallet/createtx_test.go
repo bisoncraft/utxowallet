@@ -177,7 +177,7 @@ func addUtxo(t *testing.T, w *Wallet, incomingTx *wire.MsgTx) {
 	}
 	txBytes := b.Bytes()
 
-	rec, err := wtxmgr.NewTxRecord(txBytes, time.Now())
+	rec, err := wtxmgr.NewTxRecord(w.chainParams.Chain, txBytes, time.Now())
 	if err != nil {
 		t.Fatalf("unable to create tx record: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestCreateSimpleCustomChange(t *testing.T) {
 	require.Len(t, tx1.Tx.TxOut, 2)
 	for _, txOut := range tx1.Tx.TxOut {
 		scriptType, _, _, err := txscript.ExtractPkScriptAddrs(
-			txOut.PkScript, w.chainParams,
+			txOut.PkScript, w.btcParams,
 		)
 		require.NoError(t, err)
 
@@ -397,7 +397,7 @@ func TestCreateSimpleCustomChange(t *testing.T) {
 		}
 
 		scriptType, _, _, err := txscript.ExtractPkScriptAddrs(
-			txOut.PkScript, w.chainParams,
+			txOut.PkScript, w.btcParams,
 		)
 		require.NoError(t, err)
 

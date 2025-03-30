@@ -71,7 +71,7 @@ func walletMain() error {
 	}
 
 	loader := wallet.NewLoader(
-		netParams.BTCDParams(), netDir, true, cfg.DBTimeout, 250,
+		netParams, netDir, true, cfg.DBTimeout, 250,
 	)
 
 	// Create and start chain RPC client so it's ready to connect to

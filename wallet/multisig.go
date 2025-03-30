@@ -60,7 +60,7 @@ func (w *Wallet) MakeMultiSigScript(addrs []btcutil.Address, nRequired int) ([]b
 				PubKey().SerializeCompressed()
 
 			pubKeyAddr, err := btcutil.NewAddressPubKey(
-				serializedPubKey, w.chainParams)
+				serializedPubKey, w.btcParams)
 			if err != nil {
 				return nil, err
 			}
@@ -101,7 +101,7 @@ func (w *Wallet) ImportP2SHRedeemScript(script []byte) (*btcutil.AddressScriptHa
 				// This function will never error as it always
 				// hashes the script to the correct length.
 				p2shAddr, _ = btcutil.NewAddressScriptHash(script,
-					w.chainParams)
+					w.btcParams)
 				return nil
 			}
 			return err

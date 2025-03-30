@@ -6,6 +6,7 @@
 package wtxmgr
 
 import (
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
@@ -29,7 +30,7 @@ func (s *Store) insertMemPoolTx(ns walletdb.ReadWriteBucket, rec *TxRecord) erro
 	// transaction _and_ block confirmation, we'll iterate through the
 	// transaction's outputs to determine if we've already seen them to
 	// prevent from adding this transaction to the unconfirmed bucket.
-	for i := range rec.MsgTx.TxOut {
+	for i := range rec.Tx.TxOut {
 		k := canonicalOutPoint(&rec.Hash, uint32(i))
 		if existsRawUnspent(ns, k) != nil {
 			return nil
@@ -46,7 +47,7 @@ func (s *Store) insertMemPoolTx(ns walletdb.ReadWriteBucket, rec *TxRecord) erro
 		return err
 	}
 
-	for _, input := range rec.MsgTx.TxIn {
+	for _, input := range rec.Tx.TxIn {
 		prevOut := &input.PreviousOutPoint
 		k := canonicalOutPoint(&prevOut.Hash, prevOut.Index)
 		err = putRawUnminedInput(ns, k, rec.Hash[:])
@@ -66,7 +67,7 @@ func (s *Store) insertMemPoolTx(ns walletdb.ReadWriteBucket, rec *TxRecord) erro
 // transaction).  Each conflicting transaction and all transactions which spend
 // it are recursively removed.
 func (s *Store) removeDoubleSpends(ns walletdb.ReadWriteBucket, rec *TxRecord) error {
-	for _, input := range rec.MsgTx.TxIn {
+	for _, input := range rec.Tx.TxIn {
 		prevOut := &input.PreviousOutPoint
 		prevOutKey := canonicalOutPoint(&prevOut.Hash, prevOut.Index)
 
@@ -89,7 +90,9 @@ func (s *Store) removeDoubleSpends(ns walletdb.ReadWriteBucket, rec *TxRecord) e
 				continue
 			}
 
-			var doubleSpend TxRecord
+			doubleSpend := TxRecord{
+				Tx: bisonwire.Tx{Chain: s.chainParams.Chain},
+			}
 			doubleSpend.Hash = doubleSpendHash
 			err := readRawTxRecord(
 				&doubleSpend.Hash, doubleSpendVal, &doubleSpend,
@@ -118,7 +121,7 @@ func (s *Store) removeConflict(ns walletdb.ReadWriteBucket, rec *TxRecord) error
 	// For each potential credit for this record, each spender (if any) must
 	// be recursively removed as well.  Once the spenders are removed, the
 	// credit is deleted.
-	for i := range rec.MsgTx.TxOut {
+	for i := range rec.Tx.TxOut {
 		k := canonicalOutPoint(&rec.Hash, uint32(i))
 		spenderHashes := fetchUnminedInputSpendTxHashes(ns, k)
 		for _, spenderHash := range spenderHashes {
@@ -132,7 +135,9 @@ func (s *Store) removeConflict(ns walletdb.ReadWriteBucket, rec *TxRecord) error
 				continue
 			}
 
-			var spender TxRecord
+			spender := TxRecord{
+				Tx: bisonwire.Tx{Chain: s.chainParams.Chain},
+			}
 			spender.Hash = spenderHash
 			err := readRawTxRecord(&spender.Hash, spenderVal, &spender)
 			if err != nil {
@@ -153,7 +158,7 @@ func (s *Store) removeConflict(ns walletdb.ReadWriteBucket, rec *TxRecord) error
 	// If this tx spends any previous credits (either mined or unmined), set
 	// each unspent.  Mined transactions are only marked spent by having the
 	// output in the unmined inputs bucket.
-	for _, input := range rec.MsgTx.TxIn {
+	for _, input := range rec.Tx.TxIn {
 		prevOut := &input.PreviousOutPoint
 		k := canonicalOutPoint(&prevOut.Hash, prevOut.Index)
 		err := deleteRawUnminedInput(ns, k, rec.Hash)
@@ -176,7 +181,7 @@ func (s *Store) UnminedTxs(ns walletdb.ReadBucket) ([]*wire.MsgTx, error) {
 
 	txSet := make(map[chainhash.Hash]*wire.MsgTx, len(recSet))
 	for txHash, txRec := range recSet {
-		txSet[txHash] = &txRec.MsgTx
+		txSet[txHash] = &txRec.Tx.MsgTx
 	}
 
 	return DependencySort(txSet), nil
@@ -190,8 +195,9 @@ func (s *Store) unminedTxRecords(ns walletdb.ReadBucket) (map[chainhash.Hash]*Tx
 		if err != nil {
 			return err
 		}
-
-		rec := new(TxRecord)
+		rec := &TxRecord{
+			Tx: bisonwire.Tx{Chain: s.chainParams.Chain},
+		}
 		err = readRawTxRecord(&txHash, v, rec)
 		if err != nil {
 			return err

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/bisonwire"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -381,9 +382,9 @@ func keyTxRecord(txHash *chainhash.Hash, block *Block) []byte {
 func valueTxRecord(rec *TxRecord) ([]byte, error) {
 	var v []byte
 	if rec.SerializedTx == nil {
-		txSize := rec.MsgTx.SerializeSize()
+		txSize := rec.Tx.SerializeSize()
 		v = make([]byte, 8, 8+txSize)
-		err := rec.MsgTx.Serialize(bytes.NewBuffer(v[8:]))
+		err := rec.Tx.Serialize(bytes.NewBuffer(v[8:]))
 		if err != nil {
 			str := fmt.Sprintf("unable to serialize transaction %v", rec.Hash)
 			return nil, storeError(ErrInput, str, err)
@@ -428,7 +429,7 @@ func readRawTxRecord(txHash *chainhash.Hash, v []byte, rec *TxRecord) error {
 	}
 	rec.Hash = *txHash
 	rec.Received = time.Unix(int64(byteOrder.Uint64(v)), 0)
-	err := rec.MsgTx.Deserialize(bytes.NewReader(v[8:]))
+	err := rec.Tx.Deserialize(bytes.NewReader(v[8:]))
 	if err != nil {
 		str := fmt.Sprintf("%s: failed to deserialize transaction %v",
 			bucketTxRecords, txHash)
@@ -448,29 +449,33 @@ func readRawTxRecordBlock(k []byte, block *Block) error {
 	return nil
 }
 
-func fetchTxRecord(ns walletdb.ReadBucket, txHash *chainhash.Hash, block *Block) (*TxRecord, error) {
+func fetchTxRecord(ns walletdb.ReadBucket, chain string, txHash *chainhash.Hash, block *Block) (*TxRecord, error) {
 	k := keyTxRecord(txHash, block)
 	v := ns.NestedReadBucket(bucketTxRecords).Get(k)
 
-	rec := new(TxRecord)
+	rec := &TxRecord{
+		Tx: bisonwire.Tx{Chain: chain},
+	}
 	err := readRawTxRecord(txHash, v, rec)
 	return rec, err
 }
 
 // TODO: This reads more than necessary.  Pass the pkscript location instead to
 // avoid the wire.MsgTx deserialization.
-func fetchRawTxRecordPkScript(k, v []byte, index uint32) ([]byte, error) {
-	var rec TxRecord
+func fetchRawTxRecordPkScript(chain string, k, v []byte, index uint32) ([]byte, error) {
+	rec := TxRecord{
+		Tx: bisonwire.Tx{Chain: chain},
+	}
 	copy(rec.Hash[:], k) // Silly but need an array
 	err := readRawTxRecord(&rec.Hash, v, &rec)
 	if err != nil {
 		return nil, err
 	}
-	if int(index) >= len(rec.MsgTx.TxOut) {
+	if int(index) >= len(rec.Tx.TxOut) {
 		str := "missing transaction output for credit index"
 		return nil, storeError(ErrData, str, nil)
 	}
-	return rec.MsgTx.TxOut[index].PkScript, nil
+	return rec.Tx.TxOut[index].PkScript, nil
 }
 
 func existsTxRecord(ns walletdb.ReadBucket, txHash *chainhash.Hash, block *Block) (k, v []byte) {

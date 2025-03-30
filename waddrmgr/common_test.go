@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bisoncraft/utxowallet/assets"
 	"github.com/bisoncraft/utxowallet/walletdb"
 	_ "github.com/bisoncraft/utxowallet/walletdb/bdb"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -287,12 +288,12 @@ func setupManager(t *testing.T) (tearDownFunc func(), db walletdb.DB, mgr *Manag
 		}
 		err = Create(
 			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			assets.BTCParams["mainnet"], fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, pubPassphrase, assets.BTCParams["mainnet"])
 		return err
 	})
 	if err != nil {

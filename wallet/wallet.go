@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/bisoncraft/utxowallet/chain"
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/waddrmgr"
 	"github.com/bisoncraft/utxowallet/wallet/txauthor"
 	"github.com/bisoncraft/utxowallet/wallet/txrules"
@@ -163,7 +164,8 @@ type Wallet struct {
 
 	NtfnServer *NotificationServer
 
-	chainParams *chaincfg.Params
+	chainParams *netparams.ChainParams
+	btcParams   *chaincfg.Params
 	wg          sync.WaitGroup
 
 	started bool
@@ -704,7 +706,7 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 	// We'll initialize the recovery manager with a default batch size of
 	// 2000.
 	recoveryMgr := NewRecoveryManager(
-		w.recoveryWindow, recoveryBatchSize, w.chainParams,
+		w.recoveryWindow, recoveryBatchSize, w.btcParams,
 	)
 
 	// In the event that this recovery is being resumed, we will need to
@@ -909,7 +911,7 @@ expandHorizons:
 	// and their outputs are tracked when the final rescan is performed.
 	for _, txn := range filterResp.RelevantTxns {
 		txRecord, err := wtxmgr.NewTxRecordFromMsgTx(
-			txn, filterResp.BlockMeta.Time,
+			w.chainParams.Chain, txn, filterResp.BlockMeta.Time,
 		)
 		if err != nil {
 			return err
@@ -1667,7 +1669,7 @@ func (w *Wallet) CalculateAccountBalances(account uint32, confirms int32) (Balan
 
 			var outputAcct uint32
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				output.PkScript, w.chainParams)
+				output.PkScript, w.btcParams)
 			if err == nil && len(addrs) > 0 {
 				_, outputAcct, err = w.Manager.AddrAccount(addrmgrNs, addrs[0])
 			}
@@ -2079,7 +2081,7 @@ func (c CreditCategory) String() string {
 // TODO: This is intended for use by the RPC server and should be moved out of
 // this package at a later time.
 func RecvCategory(details *wtxmgr.TxDetails, syncHeight int32, net *chaincfg.Params) CreditCategory {
-	if blockchain.IsCoinBaseTx(&details.MsgTx) {
+	if blockchain.IsCoinBaseTx(&details.Tx.MsgTx) {
 		if confirmed(int32(net.CoinbaseMaturity), details.Block.Height,
 			syncHeight) {
 			return CreditGenerate
@@ -2112,20 +2114,20 @@ func listTransactions(tx walletdb.ReadTx, details *wtxmgr.TxDetails, addrMgr *wa
 	results := []btcjson.ListTransactionsResult{}
 	txHashStr := details.Hash.String()
 	received := details.Received.Unix()
-	generated := blockchain.IsCoinBaseTx(&details.MsgTx)
+	generated := blockchain.IsCoinBaseTx(&details.Tx.MsgTx)
 	recvCat := RecvCategory(details, syncHeight, net).String()
 
 	send := len(details.Debits) != 0
 
 	// Fee can only be determined if every input is a debit.
 	var feeF64 float64
-	if len(details.Debits) == len(details.MsgTx.TxIn) {
+	if len(details.Debits) == len(details.Tx.TxIn) {
 		var debitTotal btcutil.Amount
 		for _, deb := range details.Debits {
 			debitTotal += deb.Amount
 		}
 		var outputTotal btcutil.Amount
-		for _, output := range details.MsgTx.TxOut {
+		for _, output := range details.Tx.TxOut {
 			outputTotal += btcutil.Amount(output.Value)
 		}
 		// Note: The actual fee is debitTotal - outputTotal.  However,
@@ -2135,7 +2137,7 @@ func listTransactions(tx walletdb.ReadTx, details *wtxmgr.TxDetails, addrMgr *wa
 	}
 
 outputs:
-	for i, output := range details.MsgTx.TxOut {
+	for i, output := range details.Tx.TxOut {
 		// Determine if this output is a credit, and if so, determine
 		// its spentness.
 		var isCredit bool
@@ -2232,7 +2234,7 @@ func (w *Wallet) ListSinceBlock(start, end, syncHeight int32) ([]btcjson.ListTra
 
 				jsonResults := listTransactions(
 					tx, &detail, w.Manager, syncHeight,
-					w.chainParams,
+					w.btcParams,
 				)
 				txList = append(txList, jsonResults...)
 			}
@@ -2279,7 +2281,7 @@ func (w *Wallet) ListTransactions(from, count int) ([]btcjson.ListTransactionsRe
 				}
 
 				jsonResults := listTransactions(tx, &details[i],
-					w.Manager, syncBlock.Height, w.chainParams)
+					w.Manager, syncBlock.Height, w.btcParams)
 				txList = append(txList, jsonResults...)
 
 				if len(jsonResults) > 0 {
@@ -2314,9 +2316,9 @@ func (w *Wallet) ListAddressTransactions(pkHashes map[string]struct{}) ([]btcjso
 				detail := &details[i]
 
 				for _, cred := range detail.Credits {
-					pkScript := detail.MsgTx.TxOut[cred.Index].PkScript
+					pkScript := detail.Tx.TxOut[cred.Index].PkScript
 					_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-						pkScript, w.chainParams)
+						pkScript, w.btcParams)
 					if err != nil || len(addrs) != 1 {
 						continue
 					}
@@ -2330,7 +2332,7 @@ func (w *Wallet) ListAddressTransactions(pkHashes map[string]struct{}) ([]btcjso
 					}
 
 					jsonResults := listTransactions(tx, detail,
-						w.Manager, syncBlock.Height, w.chainParams)
+						w.Manager, syncBlock.Height, w.btcParams)
 					txList = append(txList, jsonResults...)
 					continue loopDetails
 				}
@@ -2362,7 +2364,7 @@ func (w *Wallet) ListAllTransactions() ([]btcjson.ListTransactionsResult, error)
 			// reverse order they were marked mined.
 			for i := len(details) - 1; i >= 0; i-- {
 				jsonResults := listTransactions(tx, &details[i], w.Manager,
-					syncBlock.Height, w.chainParams)
+					syncBlock.Height, w.btcParams)
 				txList = append(txList, jsonResults...)
 			}
 			return false, nil
@@ -2611,7 +2613,7 @@ func (w *Wallet) Accounts(scope waddrmgr.KeyScope) (*AccountsResult, error) {
 		for i := range unspent {
 			output := unspent[i]
 			var outputAcct uint32
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.PkScript, w.chainParams)
+			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.PkScript, w.btcParams)
 			if err == nil && len(addrs) > 0 {
 				_, outputAcct, err = w.Manager.AddrAccount(addrmgrNs, addrs[0])
 			}
@@ -2689,7 +2691,7 @@ func (w *Wallet) AccountBalances(scope waddrmgr.KeyScope,
 				output.Height, syncBlock.Height) {
 				continue
 			}
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.PkScript, w.chainParams)
+			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.PkScript, w.btcParams)
 			if err != nil || len(addrs) == 0 {
 				continue
 			}
@@ -2805,7 +2807,7 @@ func (w *Wallet) ListUnspent(minconf, maxconf int32,
 			// grouped under the associated account in the db.
 			outputAcctName := defaultAccountName
 			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				output.PkScript, w.chainParams)
+				output.PkScript, w.btcParams)
 			if err != nil {
 				continue
 			}
@@ -2915,7 +2917,7 @@ func (w *Wallet) ListLeasedOutputs() ([]*ListLeasedOutputResult, error) {
 				continue
 			}
 
-			txOut := details.MsgTx.TxOut[output.Outpoint.Index]
+			txOut := details.Tx.TxOut[output.Outpoint.Index]
 
 			result := &ListLeasedOutputResult{
 				LockedOutput: output,
@@ -3333,9 +3335,9 @@ func (w *Wallet) TotalReceivedForAccounts(scope waddrmgr.KeyScope,
 			for i := range details {
 				detail := &details[i]
 				for _, cred := range detail.Credits {
-					pkScript := detail.MsgTx.TxOut[cred.Index].PkScript
+					pkScript := detail.Tx.TxOut[cred.Index].PkScript
 					var outputAcct uint32
-					_, addrs, _, err := txscript.ExtractPkScriptAddrs(pkScript, w.chainParams)
+					_, addrs, _, err := txscript.ExtractPkScriptAddrs(pkScript, w.btcParams)
 					if err == nil && len(addrs) > 0 {
 						_, outputAcct, err = w.Manager.AddrAccount(addrmgrNs, addrs[0])
 					}
@@ -3382,9 +3384,9 @@ func (w *Wallet) TotalReceivedForAddr(addr btcutil.Address, minConf int32) (btcu
 			for i := range details {
 				detail := &details[i]
 				for _, cred := range detail.Credits {
-					pkScript := detail.MsgTx.TxOut[cred.Index].PkScript
+					pkScript := detail.Tx.TxOut[cred.Index].PkScript
 					_, addrs, _, err := txscript.ExtractPkScriptAddrs(pkScript,
-						w.chainParams)
+						w.btcParams)
 					// An error creating addresses from the output script only
 					// indicates a non-standard script, so ignore this credit.
 					if err != nil {
@@ -3528,7 +3530,7 @@ func (w *Wallet) SignTransaction(tx *wire.MsgTx, hashType txscript.SigHashType,
 					return fmt.Errorf("%v not found",
 						txIn.PreviousOutPoint)
 				}
-				prevOutScript = txDetails.MsgTx.TxOut[prevIndex].PkScript
+				prevOutScript = txDetails.Tx.TxOut[prevIndex].PkScript
 			}
 			inputFetcher.AddPrevOut(txIn.PreviousOutPoint, &wire.TxOut{
 				PkScript: prevOutScript,
@@ -3732,7 +3734,7 @@ func (w *Wallet) reliablyPublishTransaction(tx *wire.MsgTx,
 	// we'll write this tx to disk as an unconfirmed transaction. This way,
 	// upon restarts, we'll always rebroadcast it, and also add it to our
 	// set of records.
-	txRec, err := wtxmgr.NewTxRecordFromMsgTx(tx, time.Now())
+	txRec, err := wtxmgr.NewTxRecordFromMsgTx(w.chainParams.Chain, tx, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -3744,7 +3746,7 @@ func (w *Wallet) reliablyPublishTransaction(tx *wire.MsgTx,
 		addrmgrNs := dbTx.ReadWriteBucket(waddrmgrNamespaceKey)
 		for _, txOut := range tx.TxOut {
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				txOut.PkScript, w.chainParams,
+				txOut.PkScript, w.btcParams,
 			)
 			if err != nil {
 				// Non-standard outputs can safely be skipped because
@@ -3816,7 +3818,7 @@ func (w *Wallet) publishTransaction(tx *wire.MsgTx) (*chainhash.Hash, error) {
 
 		dbErr := walletdb.Update(w.db, func(dbTx walletdb.ReadWriteTx) error {
 			txmgrNs := dbTx.ReadWriteBucket(wtxmgrNamespaceKey)
-			txRec, err := wtxmgr.NewTxRecordFromMsgTx(tx, time.Now())
+			txRec, err := wtxmgr.NewTxRecordFromMsgTx(w.chainParams.Chain, tx, time.Now())
 			if err != nil {
 				return err
 			}
@@ -3842,7 +3844,7 @@ func (w *Wallet) publishTransaction(tx *wire.MsgTx) (*chainhash.Hash, error) {
 	// wallet won't be accurate.
 	dbErr := walletdb.Update(w.db, func(dbTx walletdb.ReadWriteTx) error {
 		txmgrNs := dbTx.ReadWriteBucket(wtxmgrNamespaceKey)
-		txRec, err := wtxmgr.NewTxRecordFromMsgTx(tx, time.Now())
+		txRec, err := wtxmgr.NewTxRecordFromMsgTx(w.chainParams.Chain, tx, time.Now())
 		if err != nil {
 			return err
 		}
@@ -3877,7 +3879,7 @@ func (w *Wallet) publishTransaction(tx *wire.MsgTx) (*chainhash.Hash, error) {
 // ChainParams returns the network parameters for the blockchain the wallet
 // belongs to.
 func (w *Wallet) ChainParams() *chaincfg.Params {
-	return w.chainParams
+	return w.btcParams
 }
 
 // Database returns the underlying walletdb database. This method is provided
@@ -3890,11 +3892,11 @@ func (w *Wallet) Database() walletdb.DB {
 // CreateWithCallback is the same as Create with an added callback that will be
 // called in the same transaction the wallet structure is initialized.
 func CreateWithCallback(db walletdb.DB, pubPass, privPass []byte,
-	rootKey *hdkeychain.ExtendedKey, params *chaincfg.Params,
+	rootKey *hdkeychain.ExtendedKey, chainParams *netparams.ChainParams,
 	birthday time.Time, cb func(walletdb.ReadWriteTx) error) error {
 
 	return create(
-		db, pubPass, privPass, rootKey, params, birthday, false, cb,
+		db, pubPass, privPass, rootKey, chainParams, birthday, false, cb,
 	)
 }
 
@@ -3902,11 +3904,11 @@ func CreateWithCallback(db walletdb.DB, pubPass, privPass []byte,
 // added callback that will be called in the same transaction the wallet
 // structure is initialized.
 func CreateWatchingOnlyWithCallback(db walletdb.DB, pubPass []byte,
-	params *chaincfg.Params, birthday time.Time,
+	chainParams *netparams.ChainParams, birthday time.Time,
 	cb func(walletdb.ReadWriteTx) error) error {
 
 	return create(
-		db, pubPass, nil, nil, params, birthday, true, cb,
+		db, pubPass, nil, nil, chainParams, birthday, true, cb,
 	)
 }
 
@@ -3914,11 +3916,11 @@ func CreateWatchingOnlyWithCallback(db walletdb.DB, pubPass []byte,
 // root key is non-nil, it is used.  Otherwise, a secure random seed of the
 // recommended length is generated.
 func Create(db walletdb.DB, pubPass, privPass []byte,
-	rootKey *hdkeychain.ExtendedKey, params *chaincfg.Params,
+	rootKey *hdkeychain.ExtendedKey, chainParams *netparams.ChainParams,
 	birthday time.Time) error {
 
 	return create(
-		db, pubPass, privPass, rootKey, params, birthday, false, nil,
+		db, pubPass, privPass, rootKey, chainParams, birthday, false, nil,
 	)
 }
 
@@ -3927,15 +3929,15 @@ func Create(db walletdb.DB, pubPass, privPass []byte,
 // watching only.  Likewise no private passphrase may be provided
 // either.
 func CreateWatchingOnly(db walletdb.DB, pubPass []byte,
-	params *chaincfg.Params, birthday time.Time) error {
+	chainParams *netparams.ChainParams, birthday time.Time) error {
 
 	return create(
-		db, pubPass, nil, nil, params, birthday, true, nil,
+		db, pubPass, nil, nil, chainParams, birthday, true, nil,
 	)
 }
 
 func create(db walletdb.DB, pubPass, privPass []byte,
-	rootKey *hdkeychain.ExtendedKey, params *chaincfg.Params,
+	rootKey *hdkeychain.ExtendedKey, chainParams *netparams.ChainParams,
 	birthday time.Time, isWatchingOnly bool,
 	cb func(walletdb.ReadWriteTx) error) error {
 
@@ -3951,7 +3953,7 @@ func create(db walletdb.DB, pubPass, privPass []byte,
 		}
 
 		// Derive the master extended key from the seed.
-		rootKey, err = hdkeychain.NewMaster(hdSeed, params)
+		rootKey, err = hdkeychain.NewMaster(hdSeed, chainParams.BTCDParams())
 		if err != nil {
 			return fmt.Errorf("failed to derive master extended " +
 				"key")
@@ -3975,7 +3977,7 @@ func create(db walletdb.DB, pubPass, privPass []byte,
 		}
 
 		err = waddrmgr.Create(
-			addrmgrNs, rootKey, pubPass, privPass, params, nil,
+			addrmgrNs, rootKey, pubPass, privPass, chainParams, nil,
 			birthday,
 		)
 		if err != nil {
@@ -3997,10 +3999,10 @@ func create(db walletdb.DB, pubPass, privPass []byte,
 
 // Open loads an already-created wallet from the passed database and namespaces.
 func Open(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
-	params *chaincfg.Params, recoveryWindow uint32) (*Wallet, error) {
+	chainParams *netparams.ChainParams, recoveryWindow uint32) (*Wallet, error) {
 
 	return OpenWithRetry(
-		db, pubPass, cbs, params, recoveryWindow,
+		db, pubPass, cbs, chainParams, recoveryWindow,
 		defaultSyncRetryInterval,
 	)
 }
@@ -4008,7 +4010,7 @@ func Open(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
 // OpenWithRetry loads an already-created wallet from the passed database and
 // namespaces and re-tries on errors during initial sync.
 func OpenWithRetry(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
-	params *chaincfg.Params, recoveryWindow uint32,
+	chainParams *netparams.ChainParams, recoveryWindow uint32,
 	syncRetryInterval time.Duration) (*Wallet, error) {
 
 	var (
@@ -4037,11 +4039,11 @@ func OpenWithRetry(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
 			return err
 		}
 
-		addrMgr, err = waddrmgr.Open(addrMgrBucket, pubPass, params)
+		addrMgr, err = waddrmgr.Open(addrMgrBucket, pubPass, chainParams)
 		if err != nil {
 			return err
 		}
-		txMgr, err = wtxmgr.Open(txMgrBucket, params)
+		txMgr, err = wtxmgr.Open(txMgrBucket, chainParams)
 		if err != nil {
 			return err
 		}
@@ -4073,7 +4075,8 @@ func OpenWithRetry(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
 		lockState:           make(chan bool),
 		changePassphrase:    make(chan changePassphraseRequest),
 		changePassphrases:   make(chan changePassphrasesRequest),
-		chainParams:         params,
+		chainParams:         chainParams,
+		btcParams:           chainParams.BTCDParams(),
 		quit:                make(chan struct{}),
 		syncRetryInterval:   syncRetryInterval,
 	}

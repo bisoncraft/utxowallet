@@ -316,7 +316,7 @@ func (w *Wallet) txToOutputs(outputs []*wire.TxOut,
 		if tx.ChangeIndex >= 0 {
 			changePkScript := tx.Tx.TxOut[tx.ChangeIndex].PkScript
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				changePkScript, w.chainParams,
+				changePkScript, w.btcParams,
 			)
 			if err != nil {
 				return err
@@ -388,7 +388,7 @@ func (w *Wallet) findEligibleOutputs(dbtx walletdb.ReadTx,
 		// TODO: Handle multisig outputs by determining if enough of the
 		// addresses are controlled.
 		_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-			output.PkScript, w.chainParams)
+			output.PkScript, w.btcParams)
 		if err != nil || len(addrs) != 1 {
 			continue
 		}

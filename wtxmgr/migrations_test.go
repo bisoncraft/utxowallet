@@ -133,7 +133,7 @@ func TestMigrationDropTransactionHistory(t *testing.T) {
 		// while the unconfirmed will spend an output from the confirmed
 		// transaction.
 		cb := newCoinBase(1e8)
-		cbRec, err := NewTxRecordFromMsgTx(cb, timeNow())
+		cbRec, err := NewTxRecordFromMsgTx("btc", cb, timeNow())
 		if err != nil {
 			return err
 		}
@@ -141,8 +141,9 @@ func TestMigrationDropTransactionHistory(t *testing.T) {
 		b := &BlockMeta{Block: Block{Height: 100}}
 		confirmedSpend := spendOutput(&cbRec.Hash, 0, 5e7, 4e7)
 		confirmedSpendRec, err := NewTxRecordFromMsgTx(
-			confirmedSpend, timeNow(),
+			"btc", confirmedSpend, timeNow(),
 		)
+
 		if err := s.InsertTx(ns, confirmedSpendRec, b); err != nil {
 			return err
 		}
@@ -155,7 +156,7 @@ func TestMigrationDropTransactionHistory(t *testing.T) {
 			&confirmedSpendRec.Hash, 0, 5e6, 5e6,
 		)
 		unconfirmedSpendRec, err := NewTxRecordFromMsgTx(
-			unconfimedSpend, timeNow(),
+			"btc", unconfimedSpend, timeNow(),
 		)
 		if err != nil {
 			return err
@@ -163,6 +164,7 @@ func TestMigrationDropTransactionHistory(t *testing.T) {
 		if err := s.InsertTx(ns, unconfirmedSpendRec, nil); err != nil {
 			return err
 		}
+
 		err = s.AddCredit(ns, unconfirmedSpendRec, nil, 1, true)
 		if err != nil {
 			return err

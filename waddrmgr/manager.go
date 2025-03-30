@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bisoncraft/utxowallet/internal/zero"
+	"github.com/bisoncraft/utxowallet/netparams"
 	"github.com/bisoncraft/utxowallet/snacl"
 	"github.com/bisoncraft/utxowallet/spv/cache/lru"
 	"github.com/bisoncraft/utxowallet/walletdb"
@@ -351,7 +352,8 @@ type Manager struct {
 	locked       atomic.Bool
 	closed       bool
 
-	chainParams *chaincfg.Params
+	chainParams *netparams.ChainParams
+	btcParams   *chaincfg.Params
 
 	// masterKeyPub is the secret key used to secure the cryptoKeyPub key
 	// and masterKeyPriv is the secret key used to secure the cryptoKeyPriv
@@ -866,7 +868,7 @@ func (m *Manager) ChainParams() *chaincfg.Params {
 	// NOTE: No need for mutex here since the net field does not change
 	// after the manager instance is created.
 
-	return m.chainParams
+	return m.btcParams
 }
 
 // ChangePassphrase changes either the public or private passphrase to the
@@ -1369,7 +1371,7 @@ func (m *Manager) Decrypt(keyType CryptoKeyType, in []byte) ([]byte, error) {
 }
 
 // newManager returns a new locked address manager with the given parameters.
-func newManager(chainParams *chaincfg.Params, masterKeyPub *snacl.SecretKey,
+func newManager(chainParams *netparams.ChainParams, masterKeyPub *snacl.SecretKey,
 	masterKeyPriv *snacl.SecretKey, cryptoKeyPub EncryptorDecryptor,
 	cryptoKeyPrivEncrypted, cryptoKeyScriptEncrypted []byte, syncInfo *syncState,
 	birthday time.Time, privPassphraseSalt [saltSize]byte,
@@ -1377,6 +1379,7 @@ func newManager(chainParams *chaincfg.Params, masterKeyPub *snacl.SecretKey,
 
 	m := &Manager{
 		chainParams:              chainParams,
+		btcParams:                chainParams.BTCDParams(),
 		syncState:                *syncInfo,
 		birthday:                 birthday,
 		masterKeyPub:             masterKeyPub,
@@ -1504,7 +1507,7 @@ func checkBranchKeys(acctKey *hdkeychain.ExtendedKey) error {
 // the passed opened database.  The public passphrase is required to decrypt
 // the public keys.
 func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
-	chainParams *chaincfg.Params) (*Manager, error) {
+	chainParams *netparams.ChainParams) (*Manager, error) {
 
 	// Verify the version is neither too old or too new.
 	version, err := fetchManagerVersion(ns)
@@ -1650,7 +1653,7 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 // A ManagerError with an error code of ErrNoExist will be returned if the
 // passed manager does not exist in the specified namespace.
 func Open(ns walletdb.ReadBucket, pubPassphrase []byte,
-	chainParams *chaincfg.Params) (*Manager, error) {
+	chainParams *netparams.ChainParams) (*Manager, error) {
 
 	// Return an error if the manager has NOT already been created in the
 	// given database namespace.
@@ -1792,7 +1795,7 @@ func createManagerKeyScope(ns walletdb.ReadWriteBucket,
 // namespace.
 func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 	pubPassphrase, privPassphrase []byte,
-	chainParams *chaincfg.Params, config *ScryptOptions,
+	chainParams *netparams.ChainParams, config *ScryptOptions,
 	birthday time.Time) error {
 
 	// If the seed argument is nil we create in watchingOnly mode.

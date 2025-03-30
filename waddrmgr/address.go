@@ -397,7 +397,7 @@ func (a *managedAddress) ExportPrivKey() (*btcutil.WIF, error) {
 		return nil, err
 	}
 
-	return btcutil.NewWIF(pk, a.manager.rootManager.chainParams, a.compressed)
+	return btcutil.NewWIF(pk, a.manager.rootManager.btcParams, a.compressed)
 }
 
 // DerivationInfo contains the information required to derive the key that
@@ -535,7 +535,7 @@ func newManagedAddressWithoutPrivKey(m *ScopedKeyManager,
 
 		// First, we'll generate a normal p2wkh address from the pubkey hash.
 		witAddr, err := btcutil.NewAddressWitnessPubKeyHash(
-			pubKeyHash, m.rootManager.chainParams,
+			pubKeyHash, m.rootManager.btcParams,
 		)
 		if err != nil {
 			return nil, err
@@ -553,7 +553,7 @@ func newManagedAddressWithoutPrivKey(m *ScopedKeyManager,
 		// witnessProgram as the sigScript, then present the proper
 		// <sig, pubkey> pair as the witness.
 		address, err = btcutil.NewAddressScriptHash(
-			witnessProgram, m.rootManager.chainParams,
+			witnessProgram, m.rootManager.btcParams,
 		)
 		if err != nil {
 			return nil, err
@@ -561,7 +561,7 @@ func newManagedAddressWithoutPrivKey(m *ScopedKeyManager,
 
 	case PubKeyHash:
 		address, err = btcutil.NewAddressPubKeyHash(
-			pubKeyHash, m.rootManager.chainParams,
+			pubKeyHash, m.rootManager.btcParams,
 		)
 		if err != nil {
 			return nil, err
@@ -569,7 +569,7 @@ func newManagedAddressWithoutPrivKey(m *ScopedKeyManager,
 
 	case WitnessPubKey:
 		address, err = btcutil.NewAddressWitnessPubKeyHash(
-			pubKeyHash, m.rootManager.chainParams,
+			pubKeyHash, m.rootManager.btcParams,
 		)
 		if err != nil {
 			return nil, err
@@ -578,7 +578,7 @@ func newManagedAddressWithoutPrivKey(m *ScopedKeyManager,
 	case TaprootPubKey:
 		tapKey := txscript.ComputeTaprootKeyNoScript(pubKey)
 		address, err = btcutil.NewAddressTaproot(
-			schnorr.SerializePubKey(tapKey), m.rootManager.chainParams,
+			schnorr.SerializePubKey(tapKey), m.rootManager.btcParams,
 		)
 		if err != nil {
 			return nil, err
@@ -881,7 +881,7 @@ func newScriptAddress(m *ScopedKeyManager, account uint32, scriptHash,
 	scriptEncrypted []byte) (*scriptAddress, error) {
 
 	address, err := btcutil.NewAddressScriptHashFromHash(
-		scriptHash, m.rootManager.chainParams,
+		scriptHash, m.rootManager.btcParams,
 	)
 	if err != nil {
 		return nil, err
@@ -988,7 +988,7 @@ func newWitnessScriptAddress(m *ScopedKeyManager, account uint32, scriptIdent,
 	switch witnessVersion {
 	case witnessVersionV0:
 		address, err := btcutil.NewAddressWitnessScriptHash(
-			scriptIdent, m.rootManager.chainParams,
+			scriptIdent, m.rootManager.btcParams,
 		)
 		if err != nil {
 			return nil, err
@@ -1007,7 +1007,7 @@ func newWitnessScriptAddress(m *ScopedKeyManager, account uint32, scriptIdent,
 
 	case witnessVersionV1:
 		address, err := btcutil.NewAddressTaproot(
-			scriptIdent, m.rootManager.chainParams,
+			scriptIdent, m.rootManager.btcParams,
 		)
 		if err != nil {
 			return nil, err

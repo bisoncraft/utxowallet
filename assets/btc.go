@@ -22,6 +22,7 @@ var genesisMerkleRoot = chainhash.Hash([chainhash.HashSize]byte{ // Make go vet 
 
 var BTCParams = map[string]*netparams.ChainParams{
 	"mainnet": {
+		Chain:       "btc",
 		Name:        "mainnet",
 		Net:         wire.MainNet,
 		DefaultPort: "8333",
@@ -144,14 +145,17 @@ var BTCParams = map[string]*netparams.ChainParams{
 		WitnessPubKeyHashAddrID: 0x06, // starts with p2
 		WitnessScriptHashAddrID: 0x0A, // starts with 7Xh
 		// BIP32 hierarchical deterministic extended key magics
-		HDPrivateKeyID: [4]byte{0x04, 0x88, 0xad, 0xe4}, // starts with xprv
-		HDPublicKeyID:  [4]byte{0x04, 0x88, 0xb2, 0x1e}, // starts with xpub
-		HDCoinType:     0,
-		BIP0034Height:  227931, // 000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8
-		BIP0065Height:  388381, // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
-		BIP0066Height:  363725, // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
+		HDPrivateKeyID:   [4]byte{0x04, 0x88, 0xad, 0xe4}, // starts with xprv
+		HDPublicKeyID:    [4]byte{0x04, 0x88, 0xb2, 0x1e}, // starts with xpub
+		HDCoinType:       0,
+		BIP0034Height:    227931, // 000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8
+		BIP0065Height:    388381, // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
+		BIP0066Height:    363725, // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
+		CoinbaseMaturity: 100,
+		MaxSatoshi:       btcutil.MaxSatoshi,
 	},
 	"testnet": {
+		Chain:       "btc",
 		Name:        "testnet3",
 		Net:         wire.TestNet3,
 		DefaultPort: "18333",
@@ -261,8 +265,11 @@ var BTCParams = map[string]*netparams.ChainParams{
 		BIP0034Height:           21111,  // 0000000023b3a96d3484e5abb3755c413e7d41500f8e2a5c3f0dd01299cd8ef8
 		BIP0065Height:           581885, // 00000000007f6655f22f98e72ed80d8b06dc761d5da09df0fa1dc4be4f861eb6
 		BIP0066Height:           330776, // 000000002104c8c45e99a8853285a3b592602a3ccde2b832481da85e9e4ba182
+		CoinbaseMaturity:        100,
+		MaxSatoshi:              btcutil.MaxSatoshi,
 	},
 	"simnet": {
+		Chain:       "btc",
 		Name:        "regtest",
 		Net:         wire.TestNet,
 		DefaultPort: "18444",
@@ -339,6 +346,7 @@ var BTCParams = map[string]*netparams.ChainParams{
 		BIP0034Height:            100000000, // Not active - Permit ver 1 blocks
 		BIP0065Height:            1351,      // Used by regression tests
 		BIP0066Height:            1251,      // Used by regression tests
+		CoinbaseMaturity:         100,
 		MaxSatoshi:               btcutil.MaxSatoshi,
 	},
 }
